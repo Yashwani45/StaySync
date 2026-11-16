@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="30 40 305 230" fill="none">
+  <defs>
+    <linearGradient id="whiteMintGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#d1fae5" />
+    </linearGradient>
+    <linearGradient id="keyGlow" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#bef264" />
+      <stop offset="100%" stop-color="#34d399" />
+    </linearGradient>
+  </defs>
+
+  <!-- Top Diamond Key -->
+  <path
+    d="M 182.5 49 
+       L 236 102.5 
+       L 182.5 156 
+       L 129 102.5 Z 
+       M 182.5 76.5 
+       L 156.5 102.5 
+       L 182.5 128.5 
+       L 208.5 102.5 Z"
+    fill="url(#keyGlow)"
+    fill-rule="evenodd"
+  />
+
+  <!-- Dual House Contour in Clean White -->
+  <path
+    d="M 39 193 
+       L 116 116 
+       L 182.5 182.5 
+       L 249 116 
+       L 326 193 
+       L 295 193 
+       L 295 258 
+       L 203 258 
+       L 203 193 
+       L 182.5 172.5 
+       L 162 193 
+       L 162 258 
+       L 70 258 
+       L 70 193 
+       Z
+       M 89.5 238.5 
+       L 89.5 193 
+       L 116 166.5 
+       L 142.5 193 
+       L 142.5 238.5 
+       Z
+       M 222.5 238.5 
+       L 222.5 193 
+       L 249 166.5 
+       L 275.5 193 
+       L 275.5 238.5 
+       Z"
+    fill="url(#whiteMintGrad)"
+    fill-rule="evenodd"
+  />
+</svg>

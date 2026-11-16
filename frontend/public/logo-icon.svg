@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="30 40 305 230" fill="none">
+  <defs>
+    <linearGradient id="staySyncGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#84cc16" />
+      <stop offset="25%" stop-color="#22c55e" />
+      <stop offset="60%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="staySyncGlow" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#a3e635" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#10b981" stop-opacity="1" />
+    </linearGradient>
+    <filter id="softGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#047857" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Top Diamond Key / Sync Accent -->
+  <g filter="url(#softGlow)">
+    <path
+      d="M 182.5 49 
+         L 236 102.5 
+         L 182.5 156 
+         L 129 102.5 Z 
+         M 182.5 76.5 
+         L 156.5 102.5 
+         L 182.5 128.5 
+         L 208.5 102.5 Z"
+      fill="url(#staySyncGlow)"
+      fill-rule="evenodd"
+    />
+
+    <!-- Dual House / Co-Living M-Arch Contour -->
+    <path
+      d="M 39 193 
+         L 116 116 
+         L 182.5 182.5 
+         L 249 116 
+         L 326 193 
+         L 295 193 
+         L 295 258 
+         L 203 258 
+         L 203 193 
+         L 182.5 172.5 
+         L 162 193 
+         L 162 258 
+         L 70 258 
+         L 70 193 
+         Z
+         M 89.5 238.5 
+         L 89.5 193 
+         L 116 166.5 
+         L 142.5 193 
+         L 142.5 238.5 
+         Z
+         M 222.5 238.5 
+         L 222.5 193 
+         L 249 166.5 
+         L 275.5 193 
+         L 275.5 238.5 
+         Z"
+      fill="url(#staySyncGrad)"
+      fill-rule="evenodd"
+    />
+  </g>
+</svg>
