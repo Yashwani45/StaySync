@@ -18,6 +18,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const residentRoutes = require('./routes/residentRoutes');
+const locationRoutes = require('./routes/locationRoutes');
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Mount routers
 app.use('/api/auth', authRoutes);
+app.use('/api/location', locationRoutes);
 app.use('/api/properties', propertyRoutes);
 app.use('/api/roommates', roommateRoutes);
 app.use('/api/services', serviceRoutes);

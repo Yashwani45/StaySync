@@ -102,6 +102,9 @@ const Marketplaces = () => {
   const [maxBudget, setMaxBudget] = useState(searchParams.get('budget') || searchParams.get('maxBudget') || '');
   const [roomType, setRoomType] = useState(searchParams.get('roomType') || '');
   const [foodOnly, setFoodOnly] = useState(searchParams.get('foodOnly') === 'true');
+  const [searchRadius, setSearchRadius] = useState(searchParams.get('radius') || '');
+  const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'relevant');
+  const [userCoords, setUserCoords] = useState(null);
 
   // Synchronize state when URL search parameters change
   useEffect(() => {
@@ -112,6 +115,55 @@ const Marketplaces = () => {
     const qType = searchParams.get('type') || searchParams.get('propertyType');
     if (qType) setPropertyType(qType);
   }, [searchParams]);
+
+  // Auto-anchor to user's registered destination / preferred location
+  useEffect(() => {
+    if (userCoords) return;
+
+    if (user?.destinationPreference?.coordinates && user.destinationPreference.coordinates.length === 2) {
+      const [lng, lat] = user.destinationPreference.coordinates;
+      if (lat && lng) {
+        setUserCoords({ lat, lng });
+        if (!searchRadius && user.destinationPreference.preferredRadius) {
+          setSearchRadius(String(user.destinationPreference.preferredRadius));
+        }
+        if ((!city || city === 'All') && user.destinationPreference.city) {
+          setCity(user.destinationPreference.city);
+        }
+        return;
+      }
+    }
+
+    if (user?.preferredLocation?.coordinates && user.preferredLocation.coordinates.length === 2) {
+      const [lng, lat] = user.preferredLocation.coordinates;
+      if (lat && lng) {
+        setUserCoords({ lat, lng });
+        if ((!city || city === 'All') && user.preferredLocation.city) {
+          setCity(user.preferredLocation.city);
+        }
+        return;
+      }
+    }
+
+    // Fallback: check localStorage for saved guest or recent preference
+    try {
+      const savedPref = JSON.parse(localStorage.getItem('staysync_user_location_pref') || 'null');
+      if (savedPref?.coordinates && savedPref.coordinates.length === 2) {
+        const [lng, lat] = savedPref.coordinates;
+        if (lat && lng) {
+          setUserCoords({ lat, lng });
+          if (!searchRadius && savedPref.radius) {
+            setSearchRadius(String(savedPref.radius));
+          }
+          if ((!city || city === 'All') && savedPref.city) {
+            setCity(savedPref.city);
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [user]);
 
   // Dynamically discover all unique cities from loaded properties & services
   const allDiscoveredCities = useMemo(() => {
@@ -186,6 +238,12 @@ const Marketplaces = () => {
         if (maxBudget) filters.maxBudget = maxBudget;
         if (areaSearch.trim()) filters.location = areaSearch.trim();
         if (foodOnly) filters.foodAvailable = 'true';
+        if (searchRadius) filters.radius = searchRadius;
+        if (sortBy && sortBy !== 'relevant') filters.sortBy = sortBy;
+        if (userCoords) {
+          filters.userLat = userCoords.lat;
+          filters.userLng = userCoords.lng;
+        }
 
         const res = await propertiesAPI.getProperties(filters);
         if (res.success) setProperties(res.data || []);
@@ -211,7 +269,7 @@ const Marketplaces = () => {
 
   useEffect(() => {
     loadMarketplaceData();
-  }, [activeTab, city, areaSearch, propertyType, hostelCategory, maxBudget, roomType, foodOnly]);
+  }, [activeTab, city, areaSearch, propertyType, hostelCategory, maxBudget, roomType, foodOnly, searchRadius, sortBy, userCoords]);
 
   // Pre-fetch count of services
   useEffect(() => {
@@ -427,15 +485,28 @@ const Marketplaces = () => {
                 )}
               </div>
 
-              {/* Search Button */}
-              <div className="sm:col-span-2">
+              {/* Search & Map Toggle Buttons */}
+              <div className="sm:col-span-2 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={loadMarketplaceData}
-                  className="w-full py-2.5 px-4 bg-[#059669] hover:bg-[#047857] text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  className="flex-1 py-2.5 px-3 bg-[#059669] hover:bg-[#047857] text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                 >
                   <Search className="w-4 h-4" />
                   <span>Search</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode(viewMode === 'map' ? 'grid' : 'map')}
+                  className={`py-2.5 px-3 rounded-xl border text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                    viewMode === 'map'
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'bg-white text-slate-800 hover:bg-slate-50 border-slate-200 hover:border-emerald-500'
+                  }`}
+                  title={viewMode === 'map' ? 'Switch to List View' : 'Switch to Map View'}
+                >
+                  <Map className={`w-4 h-4 ${viewMode === 'map' ? 'text-white' : 'text-emerald-600'}`} />
+                  <span>{viewMode === 'map' ? 'List' : 'Map'}</span>
                 </button>
               </div>
 
@@ -741,27 +812,56 @@ const Marketplaces = () => {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto">
+                <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                  {/* Radius Filter */}
+                  <select
+                    value={searchRadius}
+                    onChange={(e) => setSearchRadius(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[11px] px-2.5 py-1.5 rounded-xl focus:outline-none focus:border-emerald-600 cursor-pointer"
+                    title="Search Radius"
+                  >
+                    <option value="">Radius: Any</option>
+                    <option value="1">Within 1 km</option>
+                    <option value="2">Within 2 km</option>
+                    <option value="5">Within 5 km</option>
+                    <option value="10">Within 10 km</option>
+                  </select>
+
+                  {/* Sort Filter */}
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[11px] px-2.5 py-1.5 rounded-xl focus:outline-none focus:border-emerald-600 cursor-pointer"
+                    title="Sort Properties"
+                  >
+                    <option value="relevant">Sort: Relevant</option>
+                    <option value="nearest">Nearest First</option>
+                    <option value="lowest_rent">Lowest Rent</option>
+                    <option value="highest_rated">Highest Rated</option>
+                    <option value="recent">Recently Added</option>
+                  </select>
+
+                  {/* List / Map View Toggle */}
                   <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                     <button
                       type="button"
                       onClick={() => setViewMode('grid')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        viewMode === 'grid' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-500'
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        viewMode === 'grid' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                       }`}
                     >
-                      <LayoutGrid className="w-3.5 h-3.5 inline mr-1" />
-                      Grid
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>List View</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setViewMode('map')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        viewMode === 'map' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-500'
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        viewMode === 'map' ? 'bg-emerald-600 text-white shadow-xs font-black' : 'text-slate-500 hover:text-slate-800'
                       }`}
                     >
-                      <Map className="w-3.5 h-3.5 inline mr-1" />
-                      Map
+                      <Map className="w-3.5 h-3.5" />
+                      <span>Map View</span>
                     </button>
                   </div>
                 </div>
@@ -793,7 +893,13 @@ const Marketplaces = () => {
                   selectedCity={city}
                   onInquire={handleSelectStay}
                   onSelectStay={handleSelectStay}
+                  onViewDetails={(prop) => setDetailsProperty(prop)}
                   selectedStayId={selectedStay?._id}
+                  searchRadius={searchRadius ? parseFloat(searchRadius) : null}
+                  userCoords={userCoords ? [userCoords.lat, userCoords.lng] : null}
+                  onUserCoordsChange={(c) => setUserCoords(c)}
+                  onSearchArea={({ lat, lng }) => setUserCoords({ lat, lng })}
+                  loading={loading}
                 />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">

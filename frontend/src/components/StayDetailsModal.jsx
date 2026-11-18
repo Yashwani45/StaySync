@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { 
   X, Star, MapPin, CheckCircle2, ShieldCheck, Heart, 
   Wifi, Snowflake, Utensils, Shirt, Shield, Clock, 
-  Phone, MessageSquare, ArrowRight, BedDouble, Calendar, UserCheck
+  Phone, MessageSquare, ArrowRight, BedDouble, Calendar, UserCheck,
+  Navigation, ExternalLink, Compass
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { normalizeImageUrl } from '../utils/imageHelper';
 import BedSelectorModal from './BedSelectorModal';
+import PropertyLocationSection from './PropertyLocationSection';
 
 const StayDetailsModal = ({ property, onClose, onBook }) => {
   const { user } = useAuth();
@@ -255,15 +257,7 @@ const StayDetailsModal = ({ property, onClose, onBook }) => {
             )}
 
             {activeTab === 'Location' && (
-              <div className="space-y-3">
-                <h3 className="font-extrabold text-sm text-slate-900">Location &amp; Neighborhood</h3>
-                <p className="text-xs text-slate-600 font-medium">
-                  Located in the heart of {property.city || 'the city'}, close to coaching institutes, tech hubs, grocery stores, and public transit.
-                </p>
-                <div className="bg-slate-100 p-6 rounded-2xl border border-slate-200 text-center text-xs text-slate-500 font-medium">
-                  📍 Map View: {[property.address, property.city].filter(Boolean).join(', ') || 'Prime Locality'}
-                </div>
-              </div>
+              <PropertyLocationSection property={property} />
             )}
 
             {activeTab === 'Reviews' && (
@@ -309,13 +303,51 @@ const StayDetailsModal = ({ property, onClose, onBook }) => {
             </div>
 
             {bookingSent ? (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl text-xs font-semibold space-y-2 text-center animate-in fade-in">
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl text-xs font-semibold space-y-3 text-center animate-in fade-in">
                 <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
                 <strong className="block text-sm">Booking Request Sent!</strong>
-                <p className="text-slate-600">The property owner and our support team have been notified. We will confirm your visit shortly.</p>
+                <p className="text-slate-600 text-[11px] leading-relaxed">
+                  Your request for <strong>{property.title}</strong> has been logged. Owner contact and check-in confirmation sent to your email.
+                </p>
+                <div className="bg-white/80 p-2.5 rounded-lg border border-emerald-200 text-left text-[11px] space-y-1">
+                  <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>{[property.address, property.city].filter(Boolean).join(', ')}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('Location')}
+                    className="flex-1 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 py-2 rounded-lg text-xs font-bold"
+                  >
+                    View On Map
+                  </button>
+                  <a
+                    href={`https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=%3B${property.location?.coordinates?.[1] || property.latitude || 22.7196}%2C${property.location?.coordinates?.[0] || property.longitude || 75.8577}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1"
+                    title="Open Directions in OpenStreetMap"
+                  >
+                    <Navigation className="w-3 h-3" />
+                    <span>Directions</span>
+                  </a>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleBooking} className="space-y-3.5">
+                {/* Location Summary Pill */}
+                <div 
+                  onClick={() => setActiveTab('Location')}
+                  className="p-2.5 bg-white rounded-xl border border-slate-200/90 flex items-center justify-between text-xs cursor-pointer hover:border-emerald-500 transition-colors"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span className="truncate text-slate-700 font-semibold">{[property.address, property.city].filter(Boolean).join(', ')}</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-bold shrink-0 ml-1">Map ↗</span>
+                </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
                     Move-in Date

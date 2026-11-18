@@ -54,6 +54,7 @@ import {
   ChevronDown,
   Shirt
 } from 'lucide-react';
+import AdminLocationOverview from '../components/AdminLocationOverview';
 
 const AdminDashboard = () => {
   const { user, logout, loading: authLoading } = useAuth();
@@ -1713,6 +1714,15 @@ const AdminDashboard = () => {
                       {stats.properties}
                     </span>
                   </button>
+                  <button
+                    onClick={() => setVerificationListingSubTab('locations')}
+                    className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                      verificationListingSubTab === 'locations' ? 'bg-white text-slate-900 shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-900'
+                    }`}
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Location Intelligence Map</span>
+                  </button>
                 </div>
               </div>
 
@@ -1926,6 +1936,11 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* SUB-TAB C: LOCATION INTELLIGENCE & MAP OVERVIEW (Part 10) */}
+              {verificationListingSubTab === 'locations' && (
+                <AdminLocationOverview />
               )}
 
             </div>
@@ -2654,6 +2669,7 @@ const AdminDashboard = () => {
                 </div>
               )}
 
+
             </div>
           )}
 
@@ -2843,6 +2859,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               )}
+
 
             </div>
           )}
@@ -3148,6 +3165,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               )}
+
 
             </div>
           )}

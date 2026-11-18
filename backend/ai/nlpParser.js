@@ -43,8 +43,8 @@ const parseNaturalQuery = (queryText) => {
     filters.propertyType = 'Room';
   }
 
-  // 4. Extract Radius / Distance
-  const radiusMatch = query.match(/\b(\d+(?:\.\d+)?)\s*(?:km|kilometer|k\.m\.|mile|km\s+ke\s+andar)\b/i);
+  // 4. Extract Radius / Distance (e.g., within 2 km, 5km ke andar, 3 km)
+  const radiusMatch = query.match(/\b(?:within|under|in)?\s*(\d+(?:\.\d+)?)\s*(?:km|kms|kilometer|kilometers|k\.m\.|mile|km\s+ke\s+andar)\b/i);
   if (radiusMatch) {
     filters.radius = parseFloat(radiusMatch[1]);
   }
@@ -87,7 +87,14 @@ const parseNaturalQuery = (queryText) => {
   }
 
   // 10. Extract Location / Landmark Keywords
-  const landmarks = ['vijay nagar', 'geeta bhawan', 'sgsits', 'iit', 'bhawarkua', 'palasia', 'chappan', 'navlakha', 'vallabh nagar', 'simrol', 'whitefield', 'koramangala', 'indiranagar', 'hina pg', 'greenfield'];
+  const landmarks = [
+    'vijay nagar', 'geeta bhawan', 'sgsits', 'iit', 'davv', 'bhawarkua', 'bhanwar kuan', 
+    'palasia', 'chappan', 'navlakha', 'vallabh nagar', 'simrol', 'super corridor', 'rau',
+    'bombay hospital', 'phoenix citadel', 'c21 mall', 'pipliyapala', 'annapurna',
+    'mp nagar', 'manit', 'aiims', 'arera colony', 'new market', 'habibganj',
+    'talwandi', 'indra vihar', 'allen', 'resonance', 'landmark city',
+    'kothrud', 'hinjewadi', 'viman nagar', 'whitefield', 'koramangala', 'indiranagar'
+  ];
   for (const lmk of landmarks) {
     if (query.includes(lmk)) {
       filters.location = lmk;

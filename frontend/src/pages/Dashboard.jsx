@@ -11,6 +11,7 @@ import AIAssistantWidget from '../components/AIAssistantWidget';
 import RentManagerModal from '../components/RentManagerModal';
 import MaintenanceModal from '../components/MaintenanceModal';
 import RentalAgreementModal from '../components/RentalAgreementModal';
+import UserLocationPreferences from '../components/UserLocationPreferences';
 import CommunityBoardWidget from '../components/CommunityBoardWidget';
 import { residentAPI } from '../services/api';
 import { sendWeb3FormsMail } from '../utils/mailHelper';
@@ -21,6 +22,8 @@ import {
   Users,
   UtensilsCrossed,
   SlidersHorizontal,
+  Compass,
+  Navigation,
   Home,
   Heart,
   CheckCircle2,
@@ -1079,6 +1082,7 @@ const Dashboard = ({ initialTab }) => {
       tabs.push({ id: 'cleaning', label: 'Cleaning & Laundry', icon: Sparkles, badge: 'Active' });
     }
 
+    tabs.push({ id: 'location_hub', label: 'My Location & Hub', icon: Compass });
     tabs.push({ id: 'community', label: 'Community Board', icon: Users });
     tabs.push({ id: 'requests', label: 'My Bookings & Inquiries', count: requests.length, icon: Send });
 
@@ -1850,6 +1854,18 @@ const Dashboard = ({ initialTab }) => {
                           <Wrench className="w-3.5 h-3.5" />
                           <span>Maintenance</span>
                         </button>
+                        {((selectedStay.location?.coordinates?.[1] || selectedStay.latitude) && (selectedStay.location?.coordinates?.[0] || selectedStay.longitude)) && (
+                          <a
+                            href={`https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=%3B${selectedStay.location?.coordinates?.[1] || selectedStay.latitude}%2C${selectedStay.location?.coordinates?.[0] || selectedStay.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3.5 py-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 font-bold text-xs rounded-xl transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
+                            title="Open Directions in OpenStreetMap"
+                          >
+                            <Navigation className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Directions</span>
+                          </a>
+                        )}
                         <button
                           onClick={handleOpenAgreement}
                           className="px-3.5 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-bold text-xs rounded-xl transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
@@ -3173,6 +3189,10 @@ const Dashboard = ({ initialTab }) => {
         {/* ================================================== */}
         {/* TAB 3: REQUESTS (Full Tracking Table)              */}
         {/* ================================================== */}
+        {activeTab === 'location_hub' && !isProvider && (
+          <UserLocationPreferences properties={properties} />
+        )}
+
         {activeTab === 'requests' && (
           <div className="bg-white rounded-3xl border border-gray-200/90 p-6 sm:p-7 shadow-xs space-y-6">
             <div className="flex justify-between items-center pb-3 border-b border-gray-150">
@@ -3206,6 +3226,11 @@ const Dashboard = ({ initialTab }) => {
                       const itemName = resolvedItem.title || resolvedItem.businessName || req.serviceDetails?.serviceCategory || (req.itemType === 'Property' ? 'Room / Stay' : 'Service');
                       const itemCat = resolvedItem.propertyType || resolvedItem.category || req.serviceDetails?.serviceCategory || req.itemType;
                       const itemCity = resolvedItem.city || req.serviceDetails?.deliveryAddress || targetCity;
+                      const itemLat = resolvedItem.location?.coordinates?.[1] || resolvedItem.latitude;
+                      const itemLng = resolvedItem.location?.coordinates?.[0] || resolvedItem.longitude;
+                      const itemLocality = resolvedItem.location?.locality || resolvedItem.locality || '';
+                      const itemAddress = resolvedItem.location?.address || resolvedItem.address || '';
+                      const isBookingConfirmed = req.status === 'Accepted' || req.status === 'Confirmed';
 
                       return (
                         <tr key={req._id} className="hover:bg-gray-50/60 transition-colors">
@@ -3227,6 +3252,12 @@ const Dashboard = ({ initialTab }) => {
                                   <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400">
                                     <MapPin className="w-2.5 h-2.5 text-gray-400" />
                                     <span>{itemCity}</span>
+                                  </span>
+                                )}
+                                {itemLocality && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
+                                    <MapPin className="w-2 h-2 text-emerald-600" />
+                                    <span>{itemLocality}{isBookingConfirmed && itemAddress ? ` · ${itemAddress}` : ''}</span>
                                   </span>
                                 )}
                               </div>
@@ -3285,6 +3316,18 @@ const Dashboard = ({ initialTab }) => {
                                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Confirmed
                                     </span>
                                   )}
+                                  {(itemLat && itemLng) && (
+                                  <a
+                                    href={`https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=%3B${itemLat}%2C${itemLng}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-300 px-2 py-1 rounded-lg transition-colors font-bold inline-flex items-center gap-1 cursor-pointer"
+                                    title="Open Directions in OpenStreetMap"
+                                  >
+                                    <Navigation className="w-3 h-3 text-emerald-600" />
+                                    <span>Directions</span>
+                                  </a>
+                                )}
                                   <button
                                     onClick={() => handleCancelRequest(req._id)}
                                     className="text-[10px] bg-slate-50 hover:bg-rose-600 hover:text-white text-slate-600 border border-slate-200 px-2.5 py-1 rounded-lg transition-colors font-bold cursor-pointer"

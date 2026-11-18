@@ -24,9 +24,11 @@ const PropertyCard = ({
     foodAvailable = false,
     verificationStatus,
     rating = 4.5,
-    distance = 1.8,
+    distance,
     roomTiers = []
   } = property;
+
+  const displayDistance = distance || property.distanceKm;
 
   // Selected room tier state (defaults to property's active roomType or first available tier)
   const initialTierType = property.roomType || '2-Seater Room';
@@ -254,10 +256,19 @@ const PropertyCard = ({
           <div className="flex items-center gap-1.5 text-gray-500 text-xs mb-3 font-medium">
             <MapPin className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
             <span className="truncate text-gray-600 flex-1">{cleanAddress}</span>
-            <span className="text-gray-300 font-normal shrink-0">•</span>
-            <span className="font-bold shrink-0 text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">
-              {distance} km away
-            </span>
+            {property.isApproximateLocation && (
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                Approx.
+              </span>
+            )}
+            {displayDistance !== undefined && displayDistance !== null && (
+              <>
+                <span className="text-gray-300 font-normal shrink-0">•</span>
+                <span className="font-bold shrink-0 text-blue-700 bg-blue-50 border border-blue-200/60 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">
+                  📍 {displayDistance} km away
+                </span>
+              </>
+            )}
           </div>
 
           {/* Differentiated Accommodation Overview */}
@@ -471,7 +482,7 @@ const PropertyCard = ({
 
         {/* 2-Tier Card Footer: Price Row + Action Buttons Row */}
         <div className="pt-3 border-t border-slate-150 mt-auto flex flex-col gap-2.5">
-          {/* Tier 1: Price and Google Maps Link */}
+          {/* Tier 1: Price and OpenStreetMap Link */}
           <div className="flex items-baseline justify-between gap-2">
             <div>
               <div className="flex items-baseline gap-1">
@@ -487,16 +498,26 @@ const PropertyCard = ({
               </span>
             </div>
 
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${title}, ${cleanAddress}`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-500 rounded-xl transition-all border border-slate-200 hover:border-emerald-200 shrink-0 flex items-center gap-1 text-[11px] font-bold"
-              title="Open in Google Maps"
-            >
-              <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">Map</span>
-            </a>
+            {(() => {
+              const propLat = property.location?.coordinates?.[1] || property.latitude;
+              const propLng = property.location?.coordinates?.[0] || property.longitude;
+              const osmLink = propLat && propLng
+                ? `https://www.openstreetmap.org/?mlat=${propLat}&mlon=${propLng}#map=16/${propLat}/${propLng}`
+                : `https://www.openstreetmap.org/search?query=${encodeURIComponent(`${title}, ${cleanAddress}`)}`;
+
+              return (
+                <a
+                  href={osmLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-500 rounded-xl transition-all border border-slate-200 hover:border-emerald-200 shrink-0 flex items-center gap-1 text-[11px] font-bold"
+                  title="Open in OpenStreetMap"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden sm:inline">Map</span>
+                </a>
+              );
+            })()}
           </div>
 
           {/* Tier 2: Action Buttons */}

@@ -27,16 +27,30 @@ export const authAPI = {
   login: (data) => api.post('/api/auth/login', data).then(r => r.data),
   googleAuth: (credential) => api.post('/api/auth/google', { credential }).then(r => r.data),
   getProfile: () => api.get('/api/auth/profile').then(r => r.data),
-  updateProfile: (data) => api.put('/api/auth/profile', data).then(r => r.data)
+  updateProfile: (data) => api.put('/api/auth/profile', data).then(r => r.data),
+  updateLocation: (data) => api.put('/api/auth/location', data).then(r => r.data)
 };
 
 // Properties Services
 export const propertiesAPI = {
   getProperties: (filters = {}) => api.get('/api/properties', { params: filters }).then(r => r.data),
   getProperty: (id) => api.get(`/api/properties/${id}`).then(r => r.data),
+  getPropertiesMap: (params = {}) => api.get('/api/properties/map', { params }).then(r => r.data),
+  getPropertyLocation: (id) => api.get(`/api/properties/${id}/location`).then(r => r.data),
+  updatePropertyLocation: (id, data) => api.put(`/api/properties/${id}/location`, data).then(r => r.data),
   createProperty: (data) => api.post('/api/properties', data).then(r => r.data),
   updateProperty: (id, data) => api.put(`/api/properties/${id}`, data).then(r => r.data),
   deleteProperty: (id) => api.delete(`/api/properties/${id}`).then(r => r.data)
+};
+
+// Location Intelligence Services (Geoapify & OpenStreetMap)
+export const locationAPI = {
+  search: (params = {}) => api.get('/api/location/search', { params }).then(r => r.data),
+  autocomplete: (params = {}) => api.get('/api/location/autocomplete', { params }).then(r => r.data),
+  reverseGeocode: (params = {}) => api.get('/api/location/reverse', { params }).then(r => r.data),
+  validateLocation: (data) => api.post('/api/location/validate', data).then(r => r.data),
+  getNearbyPlaces: (params = {}) => api.get('/api/location/nearby-places', { params }).then(r => r.data),
+  getNearbyProperties: (params = {}) => api.get('/api/location/nearby', { params }).then(r => r.data)
 };
 
 // Roommate Services

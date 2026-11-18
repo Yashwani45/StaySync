@@ -43,6 +43,62 @@ const PropertySchema = new mongoose.Schema(
       type: Number,
       required: true
     },
+    location: {
+      address: {
+        type: String,
+        default: ''
+      },
+      city: {
+        type: String,
+        default: ''
+      },
+      locality: {
+        type: String,
+        default: ''
+      },
+      area: {
+        type: String,
+        default: ''
+      },
+      landmark: {
+        type: String,
+        default: ''
+      },
+      state: {
+        type: String,
+        default: 'Madhya Pradesh'
+      },
+      pincode: {
+        type: String,
+        default: ''
+      },
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point'
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        default: undefined
+      },
+      formattedAddress: {
+        type: String,
+        default: ''
+      },
+      visibility: {
+        type: String,
+        enum: ['public', 'approximate', 'approved', 'booked'],
+        default: 'public'
+      },
+      verified: {
+        type: Boolean,
+        default: false
+      },
+      lastUpdatedAt: {
+        type: Date,
+        default: Date.now
+      }
+    },
     monthlyRent: {
       type: Number,
       required: [true, 'Please specify monthly rent'],
@@ -238,9 +294,42 @@ const PropertySchema = new mongoose.Schema(
   }
 );
 
-// Indexes for search queries
+// Pre-save hook: ensure 2-way sync between legacy latitude/longitude and location.coordinates [lng, lat]
+PropertySchema.pre('save', function (next) {
+  if (this.location && Array.isArray(this.location.coordinates) && this.location.coordinates.length === 2) {
+    this.longitude = Number(this.location.coordinates[0]);
+    this.latitude = Number(this.location.coordinates[1]);
+    this.location.type = 'Point';
+  } else if (this.latitude !== undefined && this.longitude !== undefined) {
+    if (!this.location) {
+      this.location = {};
+    }
+    this.location.type = 'Point';
+    this.location.coordinates = [Number(this.longitude), Number(this.latitude)];
+  }
+
+  if (this.location) {
+    if (!this.location.address && this.address) this.location.address = this.address;
+    if (!this.location.city && this.city) this.location.city = this.city;
+    if (!this.location.formattedAddress) {
+      const parts = [
+        this.location.address || this.address, 
+        this.location.locality || this.location.area, 
+        this.location.city || this.city, 
+        this.location.state
+      ].filter(Boolean);
+      this.location.formattedAddress = parts.join(', ');
+    }
+    this.location.lastUpdatedAt = new Date();
+  }
+
+  next();
+});
+
+// Indexes for search and geo-queries
 PropertySchema.index({ city: 1, monthlyRent: 1 });
 PropertySchema.index({ city: 1, hostelCategory: 1, roomType: 1 });
 PropertySchema.index({ latitude: 1, longitude: 1 });
+PropertySchema.index({ 'location.coordinates': '2dsphere' });
 
 module.exports = mongoose.model('Property', PropertySchema);

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getRoleDashboardLink } from '../utils/roleHelper';
+import RegistrationLocationStep from '../components/RegistrationLocationStep';
 import {
   KeyRound, Mail, User, Phone, ShieldCheck, AlertCircle,
   Eye, EyeOff, UtensilsCrossed, Sparkles, Home as HomeIcon,
@@ -53,14 +54,34 @@ const Register = () => {
 
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState(null);
+  const [regStep, setRegStep] = useState(1); // 1 = Basic Details, 2 = Map & Location Setup
 
-  const handleSubmit = async (e) => {
+  // Step 1 Validation -> Proceed to Map Setup
+  const handleProceedToLocation = (e) => {
     e.preventDefault();
+    if (!name.trim()) {
+      setLocalError('Please enter your full name.');
+      return;
+    }
+    if (!email.trim() || !email.includes('@')) {
+      setLocalError('Please enter a valid email address.');
+      return;
+    }
+    if (!password || password.length < 6) {
+      setLocalError('Password must be at least 6 characters.');
+      return;
+    }
     if (!agreeTerms) {
       setLocalError('Please agree to the Terms of Service & Privacy Policy.');
       return;
     }
 
+    setLocalError(null);
+    setRegStep(2);
+  };
+
+  // Step 2 Submission -> Final Registration with GeoJSON Location & Destination
+  const handleFinalRegister = async (locationData) => {
     setLoading(true);
     setLocalError(null);
 
@@ -76,18 +97,19 @@ const Register = () => {
       role = 'PROPERTY_OWNER';
     }
 
-    const finalCity = (isCustomCity ? customCity.trim() : city.trim()) || 'Indore';
+    const baseCity = (isCustomCity ? customCity.trim() : city.trim()) || 'Indore';
+    const selectedCity = locationData?.location?.city || baseCity;
 
     try {
       let payload = {
-        name,
-        email,
+        name: name.trim(),
+        email: email.trim(),
         password,
-        phone,
+        phone: phone.trim(),
         role,
         providerType,
-        city: finalCity,
-        address: `Prime Area, ${finalCity}`
+        city: selectedCity,
+        address: locationData?.location?.formattedAddress || locationData?.location?.address || `Prime Area, ${selectedCity}`
       };
 
       if (accountType === 'USER') {
@@ -98,7 +120,9 @@ const Register = () => {
           propertyType: tenantPreferredRoom,
           preferredRoomType: tenantPreferredRoom,
           roomShare: 'Shared',
-          foodPreference: 'Veg'
+          foodPreference: 'Veg',
+          preferredLocation: locationData?.location,
+          destinationPreference: locationData?.destinationPreference
         };
       } else if (accountType === 'TIFFIN') {
         payload = {
@@ -107,7 +131,8 @@ const Register = () => {
           monthlyPrice: price || '3200',
           vegPrice: '90',
           cuisineSpeciality: 'Homestyle North Indian',
-          meals: ['Breakfast', 'Lunch', 'Dinner']
+          meals: ['Breakfast', 'Lunch', 'Dinner'],
+          businessLocation: locationData?.location
         };
       } else if (accountType === 'CLEANING') {
         payload = {
@@ -116,14 +141,33 @@ const Register = () => {
           cleaningPrice: price || '350',
           bathroomPrice: '200',
           pricePerKg: '50',
-          cleaningServices: ['Regular Room', 'Bathroom Sanitization']
+          cleaningServices: ['Regular Room', 'Bathroom Sanitization'],
+          businessLocation: locationData?.location
         };
       } else if (accountType === 'PROPERTY_OWNER') {
         payload = {
           ...payload,
           propertyType: tenantPreferredRoom || 'Hostel',
-          city: finalCity
+          city: selectedCity,
+          businessLocation: locationData?.location
         };
+      }
+
+      // Persist chosen anchor to localStorage so marketplace immediately loads nearby stays
+      if (locationData?.destinationPreference) {
+        localStorage.setItem('staysync_user_location_pref', JSON.stringify({
+          coordinates: locationData.destinationPreference.coordinates,
+          radius: locationData.destinationPreference.preferredRadius || 5,
+          city: locationData.destinationPreference.city || selectedCity,
+          destinationName: locationData.destinationPreference.destinationName
+        }));
+      } else if (locationData?.location) {
+        localStorage.setItem('staysync_user_location_pref', JSON.stringify({
+          coordinates: locationData.location.coordinates,
+          radius: 5,
+          city: locationData.location.city || selectedCity,
+          destinationName: locationData.location.formattedAddress
+        }));
       }
 
       const newUser = await register(payload);
@@ -141,62 +185,114 @@ const Register = () => {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-12 bg-slate-50">
-      <div className="max-w-4xl w-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden grid grid-cols-1 md:grid-cols-12">
+      <div className={`w-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden grid grid-cols-1 md:grid-cols-12 transition-all duration-300 ${regStep === 2 ? 'max-w-5xl' : 'max-w-4xl'}`}>
         
         {/* Left Column: Forest Green Illustration Panel */}
-        <div className="md:col-span-5 bg-[#064e3b] p-8 text-white flex flex-col justify-between relative overflow-hidden">
-          <div className="space-y-6 relative z-10">
-            <Link to="/" className="flex items-center gap-2.5 group">
-              <div className="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-400/30 flex items-center justify-center p-1.5 shadow-inner">
-                <img src="/logo-white.svg" alt="StaySync" className="w-full h-full object-contain" />
-              </div>
-              <span className="text-xl font-black tracking-tight text-white">
-                Stay<span className="text-emerald-300">Sync</span>
-              </span>
-            </Link>
+        <div className={`${regStep === 2 ? 'md:col-span-4' : 'md:col-span-5'} bg-[#064e3b] p-8 text-white flex flex-col justify-between relative overflow-hidden transition-all duration-300`}>
+          {regStep === 1 ? (
+            <div className="space-y-6 relative z-10">
+              <Link to="/" className="flex items-center gap-2.5 group">
+                <div className="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-400/30 flex items-center justify-center p-1.5 shadow-inner">
+                  <img src="/logo-white.svg" alt="StaySync" className="w-full h-full object-contain" />
+                </div>
+                <span className="text-xl font-black tracking-tight text-white">
+                  Stay<span className="text-emerald-300">Sync</span>
+                </span>
+              </Link>
 
-            <div className="space-y-2 pt-4">
-              <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
-                Join StaySync Today
-              </h2>
-              <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed font-medium">
-                Find your ideal room, PG, and homestyle living services in minutes with zero brokerage.
-              </p>
+              <div className="space-y-2 pt-4">
+                <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+                  Join StaySync Today
+                </h2>
+                <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed font-medium">
+                  Find your ideal room, PG, and homestyle living services in minutes with zero brokerage.
+                </p>
+              </div>
+
+              {/* Value Highlights */}
+              <div className="space-y-3 pt-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">Verified Stays &amp; Real Photos</h4>
+                    <p className="text-[11px] text-emerald-200/80">Every room &amp; hostel is physically inspected.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">Zero Brokerage Guarantee</h4>
+                    <p className="text-[11px] text-emerald-200/80">Connect directly with owners without middlemen fees.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">Tiffin &amp; Housekeeping Bundles</h4>
+                    <p className="text-[11px] text-emerald-200/80">Subscribe to hygienic daily meals &amp; cleaning easily.</p>
+                  </div>
+                </div>
+              </div>
             </div>
+          ) : (
+            <div className="space-y-6 relative z-10">
+              <Link to="/" className="flex items-center gap-2.5 group">
+                <div className="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-400/30 flex items-center justify-center p-1.5 shadow-inner">
+                  <img src="/logo-white.svg" alt="StaySync" className="w-full h-full object-contain" />
+                </div>
+                <span className="text-xl font-black tracking-tight text-white">
+                  Stay<span className="text-emerald-300">Sync</span>
+                </span>
+              </Link>
 
-            {/* Value Highlights */}
-            <div className="space-y-3 pt-3">
-              <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
+              <div className="space-y-2 pt-2">
+                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-900/60 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
+                  <span>Step 2 of 2</span>
+                  <span>•</span>
+                  <span>Interactive Map Setup</span>
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Verified Stays &amp; Real Photos</h4>
-                  <p className="text-[11px] text-emerald-200/80">Every room &amp; hostel is physically inspected.</p>
-                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+                  {accountType === 'USER' ? 'Where are you looking for a stay?' : 'Where is your property located?'}
+                </h2>
+                <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed font-medium">
+                  {accountType === 'USER'
+                    ? 'Detect your GPS location or search your college/workplace to automatically anchor nearby hostels and PGs.'
+                    : 'Pin your property or service hub on OpenStreetMap with Geoapify autocomplete.'}
+                </p>
               </div>
 
-              <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
+              {/* Step Checklist */}
+              <div className="space-y-3 pt-3">
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-emerald-900/50 border border-emerald-500/30">
+                  <div className="w-6 h-6 rounded-full bg-emerald-400 text-emerald-950 flex items-center justify-center text-xs font-black">
+                    ✓
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">Basic Account Details</h4>
+                    <p className="text-[11px] text-emerald-200/80">{name || email} ({accountType})</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Zero Brokerage Guarantee</h4>
-                  <p className="text-[11px] text-emerald-200/80">Connect directly with owners without middlemen fees.</p>
-                </div>
-              </div>
 
-              <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Tiffin &amp; Housekeeping Bundles</h4>
-                  <p className="text-[11px] text-emerald-200/80">Subscribe to hygienic daily meals &amp; cleaning easily.</p>
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-300/40">
+                  <div className="w-6 h-6 rounded-full bg-emerald-300 text-emerald-950 flex items-center justify-center text-xs font-black animate-pulse">
+                    2
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">Leaflet &amp; Geoapify Map</h4>
+                    <p className="text-[11px] text-emerald-200/80">Draggable Pin &amp; Commute Buffer</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="relative z-10 pt-6 border-t border-emerald-800/60 text-[11px] text-emerald-200/70">
             Trusted by 10,000+ residents across student &amp; tech hubs nationwide
@@ -206,62 +302,63 @@ const Register = () => {
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
         </div>
 
-        {/* Right Column: Register Form */}
-        <div className="md:col-span-7 p-6 sm:p-10 flex flex-col justify-between space-y-6">
+        {/* Right Column: Register Form or Map Step */}
+        <div className={`${regStep === 2 ? 'md:col-span-8' : 'md:col-span-7'} p-6 sm:p-8 flex flex-col justify-between space-y-6 transition-all duration-300`}>
           <div className="space-y-5">
-            
-            {/* Form Header with Brand Logo */}
-            <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center p-2 shadow-xs shrink-0">
-                <img src="/logo.svg" alt="StaySync Logo" className="w-full h-full object-contain" />
-              </div>
-              <div className="space-y-0.5">
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                  <span>Join</span>
-                  <span className="text-emerald-800">Stay<span className="text-emerald-600">Sync</span></span>
-                </h3>
-                <p className="text-xs text-slate-500 font-medium">Choose your role to get started.</p>
-              </div>
-            </div>
+            {regStep === 1 ? (
+              <>
+                {/* Form Header with Brand Logo */}
+                <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center p-2 shadow-xs shrink-0">
+                    <img src="/logo.svg" alt="StaySync Logo" className="w-full h-full object-contain" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                      <span>Join</span>
+                      <span className="text-emerald-800">Stay<span className="text-emerald-600">Sync</span></span>
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">Step 1 of 2: Choose your role and enter basic details.</p>
+                  </div>
+                </div>
 
-            {/* Role Switcher Pills */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { key: 'USER', label: 'Resident', icon: User },
-                { key: 'PROPERTY_OWNER', label: 'Owner', icon: Building },
-                { key: 'TIFFIN', label: 'Tiffin', icon: UtensilsCrossed },
-                { key: 'CLEANING', label: 'Cleaning', icon: Sparkles }
-              ].map((roleItem) => {
-                const IconComponent = roleItem.icon;
-                const isSelected = accountType === roleItem.key;
-                return (
-                  <button
-                    key={roleItem.key}
-                    type="button"
-                    onClick={() => { setAccountType(roleItem.key); setLocalError(null); }}
-                    className={`py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                      isSelected
-                        ? 'bg-[#064e3b] text-white border-[#064e3b] shadow-xs'
-                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                    }`}
-                  >
-                    <IconComponent className="w-3.5 h-3.5" />
-                    <span>{roleItem.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+                {/* Role Switcher Pills */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { key: 'USER', label: 'Resident', icon: User },
+                    { key: 'PROPERTY_OWNER', label: 'Owner', icon: Building },
+                    { key: 'TIFFIN', label: 'Tiffin', icon: UtensilsCrossed },
+                    { key: 'CLEANING', label: 'Cleaning', icon: Sparkles }
+                  ].map((roleItem) => {
+                    const IconComponent = roleItem.icon;
+                    const isSelected = accountType === roleItem.key;
+                    return (
+                      <button
+                        key={roleItem.key}
+                        type="button"
+                        onClick={() => { setAccountType(roleItem.key); setLocalError(null); }}
+                        className={`py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                          isSelected
+                            ? 'bg-[#064e3b] text-white border-[#064e3b] shadow-xs'
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        <IconComponent className="w-3.5 h-3.5" />
+                        <span>{roleItem.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-            {/* Error Message */}
-            {(localError || error) && (
-              <div className="bg-rose-50 p-3 rounded-xl border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{localError || error}</span>
-              </div>
-            )}
+                {/* Error Message */}
+                {(localError || error) && (
+                  <div className="bg-rose-50 p-3 rounded-xl border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{localError || error}</span>
+                  </div>
+                )}
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-3.5">
+                {/* Form */}
+                <form onSubmit={handleProceedToLocation} className="space-y-3.5">
               
               {/* Name */}
               <div>
@@ -472,11 +569,29 @@ const Register = () => {
                 disabled={loading}
                 className="w-full py-2.5 px-4 bg-[#059669] hover:bg-[#047857] text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-98"
               >
-                <span>{loading ? 'Creating Account...' : 'Create Account'}</span>
+                <span>Next: Set Location &amp; Campus Map</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
+          </>
+        ) : (
+          <div>
+            {(localError || error) && (
+              <div className="mb-4 bg-rose-50 p-3 rounded-xl border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{localError || error}</span>
+              </div>
+            )}
+            <RegistrationLocationStep
+              accountType={accountType}
+              initialCity={(isCustomCity ? customCity.trim() : city.trim()) || 'Indore'}
+              onBack={() => setRegStep(1)}
+              onComplete={handleFinalRegister}
+              loading={loading}
+            />
           </div>
+        )}
+      </div>
 
           {/* Footer Link to Login */}
           <div className="pt-3 border-t border-slate-100 text-center text-xs text-slate-500">

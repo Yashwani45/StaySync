@@ -284,10 +284,10 @@ const Home = () => {
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 pb-16 sm:pb-20 text-center">
           
           {/* Main Headline Block */}
-          <div className="space-y-4 max-w-4xl mx-auto pb-6 sm:pb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.12] backdrop-blur-xl border border-white/20 text-xs font-bold tracking-wide shadow-[0_0_25px_rgba(99,102,241,0.25)] transition-all">
+          <div className="space-y-3.5 max-w-4xl mx-auto pb-5 sm:pb-6">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/[0.08] backdrop-blur-md border border-white/15 text-xs font-bold tracking-wide shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-              <span className="text-white/90">India's Verified Resident Living Platform</span>
+              <span className="text-white/90">Verified Resident Living</span>
               <span className="text-white/40">•</span>
               <span className="text-teal-300 font-extrabold flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-teal-300" /> Zero Brokerage
@@ -301,25 +301,9 @@ const Home = () => {
               </span>
             </h1>
 
-            <p className="text-sm sm:text-lg text-slate-300/90 font-medium max-w-2xl mx-auto px-1 leading-relaxed">
-              Verified student hostels, premium PGs, private flats, and doorstep meal &amp; housekeeping services across Indore, Bhopal, Kota, Pune, and pan-India with instant online bed holds.
+            <p className="text-sm sm:text-base text-slate-300/90 font-medium max-w-xl mx-auto px-1 leading-relaxed">
+              Verified hostels, PGs &amp; rooms with direct host pricing and instant bed holds.
             </p>
-
-            {/* Quick Platform Proof Pills */}
-            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 pt-2 text-[11px] font-bold text-slate-300">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-sm">
-                <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
-                100% Physically Audited Stays
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-sm">
-                <CreditCard className="w-3.5 h-3.5 text-indigo-400" />
-                Direct Host Pricing (No Broker)
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.06] border border-white/10 backdrop-blur-sm">
-                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                4.9/5 Student &amp; Resident Rating
-              </span>
-            </div>
           </div>
 
           {/* Category Switcher Tabs Docked Above Search Bar */}
@@ -524,34 +508,24 @@ const Home = () => {
             </form>
           </div>
 
-          {/* Popular Cities Quick Pills with Micro-tags */}
+          {/* Popular Cities Quick Pills */}
           <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-300">
             <span className="font-bold text-slate-400 flex items-center gap-1.5 mr-1">
               <Flame className="w-3.5 h-3.5 text-amber-400" />
               <span>Top Cities:</span>
             </span>
-            {[
-              { name: 'Indore', badge: 'Hub' },
-              { name: 'Bhopal', badge: 'Capital' },
-              { name: 'Kota', badge: 'Coaching' },
-              { name: 'Pune', badge: 'Tech' },
-              { name: 'Bangalore', badge: 'IT Hub' },
-              { name: 'Ujjain', badge: 'Transit' }
-            ].map((item) => (
+            {['Indore', 'Bhopal', 'Kota', 'Pune', 'Bangalore', 'Ujjain'].map((cityName) => (
               <button
-                key={item.name}
+                key={cityName}
                 type="button"
                 onClick={() => {
-                  dispatch(setSearchParam({ key: 'location', value: item.name }));
+                  dispatch(setSearchParam({ key: 'location', value: cityName }));
                   const tab = activeHeroTab === 'tiffin' ? 'tiffin' : activeHeroTab === 'cleaning' ? 'cleaning' : 'rooms';
-                  navigate(`/marketplace?tab=${tab}&city=${encodeURIComponent(item.name)}&nlp=${encodeURIComponent(item.name)}`);
+                  navigate(`/marketplace?tab=${tab}&city=${encodeURIComponent(cityName)}&nlp=${encodeURIComponent(cityName)}`);
                 }}
-                className="group px-3.5 py-1.5 rounded-full bg-white/[0.08] hover:bg-white/[0.18] border border-white/10 hover:border-white/30 text-white font-bold transition-all text-xs cursor-pointer shadow-2xs flex items-center gap-1.5 hover:scale-105"
+                className="px-3.5 py-1 rounded-full bg-white/[0.08] hover:bg-white/[0.18] border border-white/10 hover:border-white/30 text-white font-bold transition-all text-xs cursor-pointer shadow-2xs hover:scale-105"
               >
-                <span>{item.name}</span>
-                <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-white/15 text-slate-200 group-hover:bg-indigo-500/40">
-                  {item.badge}
-                </span>
+                {cityName}
               </button>
             ))}
           </div>

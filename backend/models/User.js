@@ -1,6 +1,73 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+// Standard Reusable GeoJSON Location Schema Definition
+const LocationSubSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      default: undefined
+    },
+    address: { type: String, default: '' },
+    city: { type: String, default: '' },
+    state: { type: String, default: '' },
+    locality: { type: String, default: '' },
+    area: { type: String, default: '' },
+    landmark: { type: String, default: '' },
+    pincode: { type: String, default: '' },
+    formattedAddress: { type: String, default: '' },
+    source: {
+      type: String,
+      enum: ['gps', 'search', 'map', 'manual', 'default'],
+      default: 'search'
+    },
+    verified: {
+      type: Boolean,
+      default: false
+    }
+  },
+  { _id: false }
+);
+
+// Destination Preference Schema (College, Workplace, Coaching Hub + Commute Radius)
+const DestinationPreferenceSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      default: undefined
+    },
+    destinationType: {
+      type: String,
+      enum: ['College / University', 'Coaching Institute', 'Workplace', 'Specific Locality', 'Other', ''],
+      default: ''
+    },
+    destinationName: { type: String, default: '' },
+    address: { type: String, default: '' },
+    city: { type: String, default: '' },
+    locality: { type: String, default: '' },
+    area: { type: String, default: '' },
+    landmark: { type: String, default: '' },
+    pincode: { type: String, default: '' },
+    formattedAddress: { type: String, default: '' },
+    preferredRadius: {
+      type: Number,
+      enum: [1, 2, 5, 10],
+      default: 5
+    }
+  },
+  { _id: false }
+);
+
 const UserSchema = new mongoose.Schema(
   {
     name: {
@@ -124,12 +191,31 @@ const UserSchema = new mongoose.Schema(
     profileImage: {
       type: String,
       default: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
+    },
+
+    // GeoJSON Location Objects
+    preferredLocation: {
+      type: LocationSubSchema,
+      default: () => ({})
+    },
+    destinationPreference: {
+      type: DestinationPreferenceSchema,
+      default: () => ({})
+    },
+    businessLocation: {
+      type: LocationSubSchema,
+      default: () => ({})
     }
   },
   {
     timestamps: true
   }
 );
+
+// 2dsphere Indexes for spatial querying
+UserSchema.index({ 'preferredLocation.coordinates': '2dsphere' }, { sparse: true });
+UserSchema.index({ 'destinationPreference.coordinates': '2dsphere' }, { sparse: true });
+UserSchema.index({ 'businessLocation.coordinates': '2dsphere' }, { sparse: true });
 
 // Hash password before saving
 UserSchema.pre('save', async function () {

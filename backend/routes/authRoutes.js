@@ -8,5 +8,6 @@ router.post('/login', login);
 router.post('/google', googleAuth);
 router.get('/profile', protect, getProfile);
 router.put('/profile', protect, updateProfile);
+router.put('/location', protect, updateProfile);
 
 module.exports = router;

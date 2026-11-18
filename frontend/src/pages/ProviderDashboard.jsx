@@ -21,6 +21,8 @@ import {
 import PropertyBroadcasterConsole from '../components/PropertyBroadcasterConsole';
 import AIOwnerInsightsModal from '../components/AIOwnerInsightsModal';
 import OwnerSettlementsModal from '../components/OwnerSettlementsModal';
+import LocationPickerMap from '../components/LocationPickerMap';
+import ProviderLocationManagement from '../components/ProviderLocationManagement';
 
 const DEFAULT_HOSTEL_AMENITIES = [
   'Wifi', 'AC', 'Geyser', 'Warden / Security', 'CCTV Security', 
@@ -665,6 +667,106 @@ const PropertyPhotoManager = ({
   );
 };
 
+const PropertyLocationFormFields = ({
+  address, setAddress,
+  locality, setLocality,
+  landmark, setLandmark,
+  pincode, setPincode,
+  locationVisibility, setLocationVisibility,
+  propLatitude, setPropLatitude,
+  propLongitude, setPropLongitude,
+  city
+}) => (
+  <div className="lg:col-span-3 p-4.5 rounded-2xl bg-slate-50 border border-slate-200 shadow-2xs space-y-3.5 mt-2">
+    <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+      <div className="flex items-center gap-2">
+        <MapPin className="w-4 h-4 text-emerald-600" />
+        <span className="text-xs font-extrabold uppercase text-slate-800 tracking-wider">Property Location &amp; Map Coordinates</span>
+      </div>
+      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+        GPS Enabled
+      </span>
+    </div>
+
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="sm:col-span-2">
+        <label className="block text-[11px] font-bold text-slate-700 mb-1">Full Street Address *</label>
+        <input
+          type="text"
+          required
+          placeholder="e.g. 22, Scheme No 54, near Radisson Square"
+          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 bg-white"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-bold text-slate-700 mb-1">Locality / Area *</label>
+        <input
+          type="text"
+          required
+          placeholder="e.g. Vijay Nagar, Bhawarkua, MP Nagar"
+          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 bg-white"
+          value={locality}
+          onChange={(e) => setLocality(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-bold text-slate-700 mb-1">Prominent Landmark</label>
+        <input
+          type="text"
+          placeholder="e.g. Near C21 Mall / SGSITS College"
+          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 bg-white"
+          value={landmark}
+          onChange={(e) => setLandmark(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-bold text-slate-700 mb-1">Pincode</label>
+        <input
+          type="text"
+          placeholder="e.g. 452010"
+          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 bg-white"
+          value={pincode}
+          onChange={(e) => setPincode(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-bold text-slate-700 mb-1">Location Visibility Policy</label>
+        <select
+          value={locationVisibility}
+          onChange={(e) => setLocationVisibility(e.target.value)}
+          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 bg-white focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+        >
+          <option value="public">🌐 Show Exact Location Publicly</option>
+          <option value="approximate">🛡️ Show Approximate Area (Exact on booking)</option>
+          <option value="booked">🔒 Show Exact Location After Booking Confirmation</option>
+        </select>
+      </div>
+    </div>
+
+    {/* Location Picker Interactive Map */}
+    <div>
+      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+        Pinpoint Exact Location on Map (Click or Drag Marker)
+      </label>
+      <LocationPickerMap
+        latitude={propLatitude}
+        longitude={propLongitude}
+        city={city}
+        onCoordinatesChange={({ lat, lng }) => {
+          setPropLatitude(lat);
+          setPropLongitude(lng);
+        }}
+      />
+    </div>
+  </div>
+);
+
 const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => {
   const { user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -745,6 +847,14 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
   const [businessName, setBusinessName] = useState('');
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
+  const [locality, setLocality] = useState('');
+  const [area, setArea] = useState('');
+  const [landmark, setLandmark] = useState('');
+  const [stateLoc, setStateLoc] = useState('Madhya Pradesh');
+  const [pincode, setPincode] = useState('');
+  const [propLatitude, setPropLatitude] = useState('');
+  const [propLongitude, setPropLongitude] = useState('');
+  const [locationVisibility, setLocationVisibility] = useState('public');
   const initialCity = searchParams.get('city') || user?.currentCity || user?.preferredCity || user?.city || '';
   const [city, setCity] = useState(initialCity);
   const [userCitySynced, setUserCitySynced] = useState(Boolean(searchParams.get('city')));
@@ -1817,6 +1927,14 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
     setElectricityCharges('As per meter unit');
     setFloorNumber('1st Floor');
     setKitchenType('Dedicated Private Kitchen');
+    setLocality('');
+    setArea('');
+    setLandmark('');
+    setStateLoc('Madhya Pradesh');
+    setPincode('');
+    setPropLatitude('');
+    setPropLongitude('');
+    setLocationVisibility('public');
   };
 
   const handleEditProperty = (prop) => {
@@ -1826,6 +1944,14 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
     setHostelCategory(prop.hostelCategory || 'Girls & Boys Hostel');
     setCity(prop.city || user?.currentCity || user?.preferredCity || user?.city || '');
     setAddress(prop.address || '');
+    setLocality(prop.location?.locality || '');
+    setArea(prop.location?.area || '');
+    setLandmark(prop.location?.landmark || '');
+    setStateLoc(prop.location?.state || 'Madhya Pradesh');
+    setPincode(prop.location?.pincode || '');
+    setPropLatitude(prop.location?.coordinates?.[1] || prop.latitude || '');
+    setPropLongitude(prop.location?.coordinates?.[0] || prop.longitude || '');
+    setLocationVisibility(prop.location?.visibility || 'public');
     setSecurityDeposit(prop.securityDeposit?.toString() || '');
     setFoodAvailable(prop.foodAvailable !== undefined ? prop.foodAvailable : true);
     setHostelCurfew(prop.gateTiming || '10:30 PM');
@@ -2056,6 +2182,21 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
             hostelCategory,
             address,
             city,
+            location: {
+              address,
+              city,
+              locality: locality || '',
+              area: area || '',
+              landmark: landmark || '',
+              state: stateLoc || 'Madhya Pradesh',
+              pincode: pincode || '',
+              type: 'Point',
+              coordinates: [parseFloat(propLongitude) || 75.8577, parseFloat(propLatitude) || 22.7196],
+              visibility: locationVisibility || 'public',
+              formattedAddress: [address, locality, city, stateLoc || 'Madhya Pradesh'].filter(Boolean).join(', ')
+            },
+            latitude: parseFloat(propLatitude) || 22.7196,
+            longitude: parseFloat(propLongitude) || 75.8577,
             monthlyRent: rentVal,
             rentPerPerson: rentVal,
             securityDeposit: securityDeposit ? parseInt(securityDeposit) : rentVal,
@@ -2113,6 +2254,21 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
             hostelCategory,
             address,
             city,
+            location: {
+              address,
+              city,
+              locality: locality || '',
+              area: area || '',
+              landmark: landmark || '',
+              state: stateLoc || 'Madhya Pradesh',
+              pincode: pincode || '',
+              type: 'Point',
+              coordinates: [parseFloat(propLongitude) || 75.8577, parseFloat(propLatitude) || 22.7196],
+              visibility: locationVisibility || 'public',
+              formattedAddress: [address, locality, city, stateLoc || 'Madhya Pradesh'].filter(Boolean).join(', ')
+            },
+            latitude: parseFloat(propLatitude) || 22.7196,
+            longitude: parseFloat(propLongitude) || 75.8577,
             monthlyRent: pgRentVal,
             rentPerPerson: pgRentVal,
             securityDeposit: securityDeposit ? parseInt(securityDeposit) : pgRentVal,
@@ -2149,6 +2305,21 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
             hostelCategory: preferredTenants.includes('Girls') ? 'Girls Hostel' : 'Girls & Boys Hostel',
             address,
             city,
+            location: {
+              address,
+              city,
+              locality: locality || '',
+              area: area || '',
+              landmark: landmark || '',
+              state: stateLoc || 'Madhya Pradesh',
+              pincode: pincode || '',
+              type: 'Point',
+              coordinates: [parseFloat(propLongitude) || 75.8577, parseFloat(propLatitude) || 22.7196],
+              visibility: locationVisibility || 'public',
+              formattedAddress: [address, locality, city, stateLoc || 'Madhya Pradesh'].filter(Boolean).join(', ')
+            },
+            latitude: parseFloat(propLatitude) || 22.7196,
+            longitude: parseFloat(propLongitude) || 75.8577,
             monthlyRent: rentVal,
             rentPerPerson: rentVal,
             securityDeposit: securityDeposit ? parseInt(securityDeposit) : rentVal,
@@ -3014,6 +3185,27 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
             <span>Hostel Mess Menu</span>
             <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
               Mess
+            </span>
+          </button>
+        )}
+
+        {/* Tab 4 for Property Owner: Property Locations & Map Management (Part 9) */}
+        {activeTab === 'property' && (
+          <button
+            type="button"
+            onClick={() => switchSectionTab('locations')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              activeSectionTab === 'locations'
+                ? 'bg-white text-emerald-900 shadow-xs border border-emerald-300 font-black'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+            }`}
+          >
+            <MapPin className="w-4 h-4 text-emerald-600" />
+            <span>Locations &amp; Maps</span>
+            <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full border ${
+              activeSectionTab === 'locations' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-white/60 text-gray-600 border-gray-200'
+            }`}>
+              {displayedListings.length}
             </span>
           </button>
         )}
@@ -4711,17 +4903,16 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
                       </label>
                     </div>
 
-                    <div className="lg:col-span-3">
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Full Street Address &amp; Landmark</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. 22, Vallabh Nagar, near SGSITS College, A.B. Road"
-                        className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none font-medium"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                      />
-                    </div>
+                    <PropertyLocationFormFields
+                      address={address} setAddress={setAddress}
+                      locality={locality} setLocality={setLocality}
+                      landmark={landmark} setLandmark={setLandmark}
+                      pincode={pincode} setPincode={setPincode}
+                      locationVisibility={locationVisibility} setLocationVisibility={setLocationVisibility}
+                      propLatitude={propLatitude} setPropLatitude={setPropLatitude}
+                      propLongitude={propLongitude} setPropLongitude={setPropLongitude}
+                      city={city}
+                    />
                   </div>
 
                   {/* Direct Hostel Bed Capacity & Pricing (Direct Owner Input, No Seater Restrictions) */}
@@ -5035,17 +5226,16 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
                       </select>
                     </div>
 
-                    <div className="lg:col-span-3">
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Full PG Address &amp; Landmark</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. 45, Scheme 54, near Vijay Nagar Square, Indore"
-                        className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                      />
-                    </div>
+                    <PropertyLocationFormFields
+                      address={address} setAddress={setAddress}
+                      locality={locality} setLocality={setLocality}
+                      landmark={landmark} setLandmark={setLandmark}
+                      pincode={pincode} setPincode={setPincode}
+                      locationVisibility={locationVisibility} setLocationVisibility={setLocationVisibility}
+                      propLatitude={propLatitude} setPropLatitude={setPropLatitude}
+                      propLongitude={propLongitude} setPropLongitude={setPropLongitude}
+                      city={city}
+                    />
                   </div>
 
                   {/* PG Sharing Types Multiselect */}
@@ -5276,17 +5466,16 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
                       </select>
                     </div>
 
-                    <div className="lg:col-span-3">
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Full Property Address &amp; Landmark</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Flat 302, Silver Heights, 14 Old Palasia, Indore"
-                        className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                      />
-                    </div>
+                    <PropertyLocationFormFields
+                      address={address} setAddress={setAddress}
+                      locality={locality} setLocality={setLocality}
+                      landmark={landmark} setLandmark={setLandmark}
+                      pincode={pincode} setPincode={setPincode}
+                      locationVisibility={locationVisibility} setLocationVisibility={setLocationVisibility}
+                      propLatitude={propLatitude} setPropLatitude={setPropLatitude}
+                      propLongitude={propLongitude} setPropLongitude={setPropLongitude}
+                      city={city}
+                    />
                   </div>
 
                   {/* Room / Flat Amenities Checklist */}
@@ -6113,6 +6302,19 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
       </div>
 
         </div>
+      )}
+
+      {/* SECTION: PROPERTY LOCATION MANAGEMENT (Part 9) */}
+      {activeSectionTab === 'locations' && activeTab === 'property' && (
+        <ProviderLocationManagement
+          listings={displayedListings}
+          onEditLocation={(prop) => {
+            handleEditProperty(prop);
+            setShowCreateForm(true);
+            switchSectionTab('listings');
+          }}
+          onRefresh={loadProviderData}
+        />
       )}
 
       {/* SECTION 2: INCOMING TENANT INQUIRIES & SERVICE BOOKINGS */}

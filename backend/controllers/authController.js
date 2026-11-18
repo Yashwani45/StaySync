@@ -62,7 +62,49 @@ exports.register = async (req, res) => {
       monthlyBudget: monthlyBudget ? parseInt(monthlyBudget) : 0,
       foodPreference: foodPreference || req.body.tenantFoodPref || '',
       currentCity: city || 'Indore',
-      preferredCity: city || 'Indore'
+      preferredCity: city || 'Indore',
+      preferredLocation: req.body.preferredLocation && req.body.preferredLocation.coordinates ? {
+        type: 'Point',
+        coordinates: req.body.preferredLocation.coordinates,
+        address: req.body.preferredLocation.address || '',
+        city: req.body.preferredLocation.city || city || 'Indore',
+        state: req.body.preferredLocation.state || '',
+        locality: req.body.preferredLocation.locality || '',
+        area: req.body.preferredLocation.area || '',
+        landmark: req.body.preferredLocation.landmark || '',
+        pincode: req.body.preferredLocation.pincode || '',
+        formattedAddress: req.body.preferredLocation.formattedAddress || '',
+        source: req.body.preferredLocation.source || 'search',
+        verified: Boolean(req.body.preferredLocation.verified)
+      } : undefined,
+      destinationPreference: req.body.destinationPreference && req.body.destinationPreference.coordinates ? {
+        type: 'Point',
+        coordinates: req.body.destinationPreference.coordinates,
+        destinationType: req.body.destinationPreference.destinationType || '',
+        destinationName: req.body.destinationPreference.destinationName || '',
+        address: req.body.destinationPreference.address || '',
+        city: req.body.destinationPreference.city || city || 'Indore',
+        locality: req.body.destinationPreference.locality || '',
+        area: req.body.destinationPreference.area || '',
+        landmark: req.body.destinationPreference.landmark || '',
+        pincode: req.body.destinationPreference.pincode || '',
+        formattedAddress: req.body.destinationPreference.formattedAddress || '',
+        preferredRadius: Number(req.body.destinationPreference.preferredRadius) || 5
+      } : undefined,
+      businessLocation: req.body.businessLocation && req.body.businessLocation.coordinates ? {
+        type: 'Point',
+        coordinates: req.body.businessLocation.coordinates,
+        address: req.body.businessLocation.address || req.body.businessAddress || address || '',
+        city: req.body.businessLocation.city || city || 'Indore',
+        state: req.body.businessLocation.state || '',
+        locality: req.body.businessLocation.locality || '',
+        area: req.body.businessLocation.area || '',
+        landmark: req.body.businessLocation.landmark || '',
+        pincode: req.body.businessLocation.pincode || '',
+        formattedAddress: req.body.businessLocation.formattedAddress || '',
+        source: req.body.businessLocation.source || 'search',
+        verified: false
+      } : undefined
     });
 
     if (user) {
@@ -811,6 +853,9 @@ exports.updateProfile = async (req, res) => {
     if (req.body.businessAddress !== undefined) user.businessAddress = req.body.businessAddress;
     if (req.body.businessType !== undefined) user.businessType = req.body.businessType;
     if (req.body.state !== undefined) user.state = req.body.state;
+    if (req.body.preferredLocation !== undefined) user.preferredLocation = req.body.preferredLocation;
+    if (req.body.destinationPreference !== undefined) user.destinationPreference = req.body.destinationPreference;
+    if (req.body.businessLocation !== undefined) user.businessLocation = req.body.businessLocation;
 
     // Handle password change if requested
     if (req.body.newPassword) {
