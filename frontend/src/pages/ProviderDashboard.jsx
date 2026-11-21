@@ -2906,7 +2906,7 @@ const ProviderDashboard = ({ initialTab, propertyType: forcedPropertyType }) => 
             {activeTab === 'cleaning' && 'Manage your room sanitization rates, laundry per-kg pricing, and doorstep customer appointments.'}
             {activeTab === 'property' && (
               propertyType === 'PG' ? 'Manage your PG beds, sharing options, food policies, and track incoming tenant inquiries.' :
-              propertyType === 'Room' || propertyType === 'Flat' ? 'Manage your flats, private rooms, furnishing details, leases, and tenant applications.' :
+              propertyType === 'Room' || propertyType === 'Flat' ? 'Manage your flats, apartments, furnishing details, leases, and tenant applications.' :
               'Manage your hostel rooms, track bed vacancies, publish listings, and respond to incoming student applications.'
             )}
           </p>

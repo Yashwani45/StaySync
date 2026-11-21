@@ -132,7 +132,7 @@ const LivingCalculatorModal = ({ isOpen, onClose, initialBudget = 10000, initial
                 >
                   <DoorClosed className="w-5 h-5 text-teal-600 shrink-0" />
                   <div>
-                    <div className="font-black text-xs leading-none">Private Room</div>
+                    <div className="font-black text-xs leading-none">Single Room</div>
                     <span className="text-[10px] text-slate-400 font-medium">₹10,500/mo avg</span>
                   </div>
                 </button>

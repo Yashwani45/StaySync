@@ -479,7 +479,6 @@ const Register = () => {
                     >
                       <option value="Hostel">Hostel</option>
                       <option value="PG">Paying Guest (PG)</option>
-                      <option value="Room">Private Room</option>
                       <option value="Flat">1/2 BHK Flat</option>
                     </select>
                   </div>

@@ -332,7 +332,7 @@ const Home = () => {
                 }`}
               >
                 <HomeIcon className={`w-3.5 h-3.5 ${activeHeroTab === 'flats' ? 'text-purple-600' : 'text-slate-400'}`} />
-                <span>Flats &amp; Private Rooms</span>
+                <span>Flats &amp; Apartments</span>
               </button>
 
               <button

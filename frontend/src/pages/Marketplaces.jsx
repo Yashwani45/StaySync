@@ -671,7 +671,6 @@ const Marketplaces = () => {
                     { label: 'All Stays', value: '' },
                     { label: 'Hostels', value: 'Hostel' },
                     { label: 'Paying Guest (PG)', value: 'PG' },
-                    { label: 'Private Rooms', value: 'Room' },
                     { label: 'Flats & Apartments', value: 'Flat' }
                   ].map(opt => (
                     <label key={opt.value} className="flex items-center gap-2 cursor-pointer hover:text-slate-900">
@@ -980,7 +979,6 @@ const Marketplaces = () => {
                           { label: 'All Stays', value: '' },
                           { label: 'Hostels', value: 'Hostel' },
                           { label: 'Paying Guest (PG)', value: 'PG' },
-                          { label: 'Private Rooms', value: 'Room' },
                           { label: 'Flats & Apartments', value: 'Flat' }
                         ].map(opt => (
                           <label key={opt.value} className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer ${

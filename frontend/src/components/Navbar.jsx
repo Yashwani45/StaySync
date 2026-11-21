@@ -591,40 +591,14 @@ const Navbar = () => {
                           <span>{user.role === 'USER' ? 'Resident Dashboard' : 'Provider Portal'}</span>
                         </Link>
 
-                        {isProviderRole ? (
-                          <>
-                            <a
-                              href={`${getRoleDashboardLink()}#provider-inquiries-section`}
-                              onClick={() => {
-                                setProfileDropdownOpen(false);
-                                if (location.pathname.startsWith('/owner') || location.pathname.startsWith('/provider')) {
-                                  handleScrollToSection('provider-inquiries-section');
-                                }
-                              }}
-                              className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors cursor-pointer"
-                            >
-                              <ClipboardList className="w-3.5 h-3.5 text-green-600" />
-                              <span>Tenant Inquiries &amp; Bookings</span>
-                            </a>
-                            <Link
-                              to="/bookings"
-                              onClick={() => setProfileDropdownOpen(false)}
-                              className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors"
-                            >
-                              <BookMarked className="w-3.5 h-3.5 text-teal-600" />
-                              <span>My Orders &amp; Submissions</span>
-                            </Link>
-                          </>
-                        ) : (
-                          <Link
-                            to="/bookings"
-                            onClick={() => setProfileDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors"
-                          >
-                            <BookMarked className="w-3.5 h-3.5 text-teal-600" />
-                            <span>My Bookings &amp; Orders</span>
-                          </Link>
-                        )}
+                        <Link
+                          to="/bookings"
+                          onClick={() => setProfileDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 transition-colors"
+                        >
+                          <BookMarked className="w-3.5 h-3.5 text-teal-600" />
+                          <span>{isProviderRole ? 'My Orders & Submissions' : 'My Bookings & Orders'}</span>
+                        </Link>
                       </div>
 
                       {/* Living Companion Tools (for residents) */}
@@ -806,12 +780,12 @@ const Navbar = () => {
                 {isProviderRole ? 'Provider Management' : 'Resident Workspace'}
               </span>
               <Link
-                to={isProviderRole ? `${getRoleDashboardLink()}#provider-inquiries-section` : "/bookings"}
+                to="/bookings"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-gray-800 hover:bg-emerald-50 hover:text-emerald-700"
               >
                 <BookMarked className="w-4 h-4 text-emerald-600" />
-                <span>{isProviderRole ? 'Tenant Inquiries & Bookings' : 'My Bookings'}</span>
+                <span>{isProviderRole ? 'My Orders & Submissions' : 'My Bookings'}</span>
               </Link>
               <Link
                 to="/marketplace?tab=rooms"
@@ -899,12 +873,12 @@ const Navbar = () => {
                 <span>{user.role === 'USER' ? 'Resident Dashboard' : 'Provider Portal'}</span>
               </Link>
               <Link
-                to={isProviderRole ? `${getRoleDashboardLink()}#provider-inquiries-section` : "/bookings"}
+                to="/bookings"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-gray-800 hover:bg-emerald-50 hover:text-emerald-700"
               >
                 <BookMarked className="w-4 h-4 text-teal-600" />
-                <span>{isProviderRole ? 'Tenant Inquiries & Bookings' : 'My Bookings & Orders'}</span>
+                <span>{isProviderRole ? 'My Orders & Submissions' : 'My Bookings & Orders'}</span>
               </Link>
               <Link
                 to="/profile"

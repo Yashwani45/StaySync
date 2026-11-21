@@ -83,7 +83,7 @@ const PropertyCard = ({
     if (propertyType === 'Room' || propertyType === 'Flat') {
       return {
         bg: 'bg-teal-700/90 text-white border-teal-400/30',
-        label: propertyType === 'Flat' ? 'Flat / Apartment' : 'Private Room',
+        label: 'Flat / Apartment',
         dot: 'bg-teal-300'
       };
     }

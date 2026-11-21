@@ -223,7 +223,7 @@ const StayDetailsModal = ({ property, onClose, onBook }) => {
                 <h3 className="font-extrabold text-sm text-slate-900">Room Sharing Tiers</h3>
                 <div className="space-y-2.5">
                   {(property.roomTiers && property.roomTiers.length > 0 ? property.roomTiers : [
-                    { roomType: '1-Seater Private Room', rentPerPerson: rent + 2000, occupancy: 1, availableBeds: 1 },
+                    { roomType: '1-Seater Single Room', rentPerPerson: rent + 2000, occupancy: 1, availableBeds: 1 },
                     { roomType: '2-Seater Shared Room', rentPerPerson: rent, occupancy: 2, availableBeds: 2 },
                     { roomType: '3-Seater Shared Room', rentPerPerson: Math.max(4000, rent - 1200), occupancy: 3, availableBeds: 3 }
                   ]).map((tier, i) => (

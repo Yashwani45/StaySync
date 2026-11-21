@@ -242,7 +242,7 @@ exports.register = async (req, res) => {
       } else if (user.role === 'PROPERTY_OWNER' && (req.body.createInitialProperty || req.body.propertyTitle || req.body.businessName)) {
         const propTitle = propertyTitle || businessName || (
           propertyType === 'PG' ? `${name}'s Premium PG` :
-          (propertyType === 'Room' || propertyType === 'Flat') ? `${name}'s Private Room / Flat` :
+          (propertyType === 'Room' || propertyType === 'Flat') ? `${name}'s Flat / Apartment` :
           `${name}'s Premium Hostel`
         );
         const pType = propertyType && ['Hostel', 'PG', 'Room', 'Flat'].includes(propertyType) ? propertyType : 'Hostel';

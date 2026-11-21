@@ -305,8 +305,7 @@ const Dashboard = ({ initialTab }) => {
     if (userStayPref === 'PG') {
       return userGender?.toLowerCase() === 'female' ? 'Girls PGs' : userGender?.toLowerCase() === 'male' ? 'Boys PGs' : 'Paying Guest (PG)';
     }
-    if (userStayPref === 'Room') return 'Private Rooms';
-    if (userStayPref === 'Flat') return 'Flats & Apartments';
+    if (userStayPref === 'Room' || userStayPref === 'Flat') return 'Flats & Apartments';
     return 'Rooms & Hostels';
   }, [userStayPref, userGender]);
 

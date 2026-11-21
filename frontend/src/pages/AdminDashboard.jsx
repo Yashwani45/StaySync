@@ -1194,7 +1194,7 @@ const AdminDashboard = () => {
                       </p>
                     </div>
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                      <p className="text-[11px] font-bold text-slate-500">Private Rooms</p>
+                      <p className="text-[11px] font-bold text-slate-500">Flats & Apartments</p>
                       <p className="text-lg font-black text-slate-900 mt-0.5">
                         {stats.propertyTypeCounts?.find(p => p._id === 'Flat' || p._id === 'Room')?.count || 0}
                       </p>
