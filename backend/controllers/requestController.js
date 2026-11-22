@@ -82,6 +82,13 @@ exports.createRequest = async (req, res) => {
         return res.status(404).json({ success: false, message: 'Property not found' });
       }
 
+      // Gender suitability check (Prevent males booking girls hostels & vice versa)
+      const { validateGenderMatch } = require('../utils/genderValidator');
+      const genderCheck = await validateGenderMatch(req.user, property);
+      if (!genderCheck.valid) {
+        return res.status(400).json({ success: false, message: genderCheck.message });
+      }
+
       // Check available inventory to prevent overbooking
       if (property.availableBeds !== undefined && property.availableBeds <= 0) {
         return res.status(400).json({ 

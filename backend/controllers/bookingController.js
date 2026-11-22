@@ -84,6 +84,13 @@ exports.getAvailableBeds = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Property not found' });
     }
 
+    // Check if property is gender restricted for the requesting user
+    const { validateGenderMatch } = require('../utils/genderValidator');
+    const genderCheck = req.user ? await validateGenderMatch(req.user, property) : { valid: true };
+    if (!genderCheck.valid) {
+      return res.status(400).json({ success: false, message: genderCheck.message });
+    }
+
     // Ensure rooms array is populated
     const rooms = await ensurePropertyRooms(property);
 
@@ -183,6 +190,7 @@ exports.getAvailableBeds = async (req, res) => {
         propertyTitle: property.title,
         cancellationPolicy: property.cancellationPolicy || 'Moderate',
         securityDeposit: property.securityDeposit || property.monthlyRent || 0,
+        genderRestriction: !genderCheck.valid ? genderCheck.message : null,
         rooms: roomsWithAvailability
       }
     });
@@ -219,6 +227,16 @@ exports.holdBed = async (req, res) => {
     const property = await Property.findById(propertyId);
     if (!property) {
       return res.status(404).json({ success: false, message: 'Property not found' });
+    }
+
+    // Check if property is gender restricted for the requesting user
+    const { validateGenderMatch } = require('../utils/genderValidator');
+    const genderCheck = req.user ? await validateGenderMatch(req.user, property) : { valid: true };
+    if (!genderCheck.valid) {
+      return res.status(400).json({ success: false, message: genderCheck.message });
+    }
+    if (!genderCheck.valid) {
+      return res.status(400).json({ success: false, message: genderCheck.message });
     }
 
     // Check if bed is already occupied by confirmed booking in requested date range
@@ -357,6 +375,13 @@ exports.createBooking = async (req, res) => {
     const property = await Property.findById(propertyId);
     if (!property) {
       return res.status(404).json({ success: false, message: 'Property not found' });
+    }
+
+    // Check if property is gender restricted for the requesting user
+    const { validateGenderMatch } = require('../utils/genderValidator');
+    const genderCheck = req.user ? await validateGenderMatch(req.user, property) : { valid: true };
+    if (!genderCheck.valid) {
+      return res.status(400).json({ success: false, message: genderCheck.message });
     }
 
     if (property.owner && property.owner.toString() === req.user.id) {

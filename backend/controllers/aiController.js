@@ -84,7 +84,8 @@ exports.getPersonalizedRecommendations = async (req, res) => {
 
     const city = req.query.city || currentUser?.preferredCity || currentUser?.currentCity || 'Indore';
     const targetBudget = Number(req.query.maxBudget) || userProfile?.monthlyBudget || currentUser?.monthlyBudget || 10000;
-    const gender = userProfile?.gender || currentUser?.gender || 'Any';
+    const rawGender = userProfile?.gender || currentUser?.gender || req.query.gender || 'Any';
+    const gender = rawGender.toLowerCase();
 
     // Query real properties in database
     const query = {
@@ -96,9 +97,51 @@ exports.getPersonalizedRecommendations = async (req, res) => {
       query.city = new RegExp(city, 'i');
     }
 
-    const properties = await Property.find(query).populate('owner', 'name phone email isVerified').lean();
+    if (gender === 'female') {
+      query.$or = [
+        { hostelCategory: { $in: ['Girls Hostel', 'Girls & Boys Hostel'] } },
+        { propertyType: 'Flat' }
+      ];
+    } else if (gender === 'male') {
+      query.$or = [
+        { hostelCategory: { $in: ['Boys Hostel', 'Girls & Boys Hostel'] } },
+        { propertyType: 'Flat' }
+      ];
+    }
 
-    const scoredProperties = properties.map(property => {
+    let properties = await Property.find(query).populate('owner', 'name phone email isVerified').lean();
+
+    // Fallback: If no properties in city matching gender, search across all cities strictly matching gender
+    if (properties.length === 0 && city && city !== 'All') {
+      const anyCityQuery = {
+        isAvailable: true,
+        verificationStatus: 'Verified'
+      };
+      if (gender === 'female') {
+        anyCityQuery.$or = [
+          { hostelCategory: { $in: ['Girls Hostel', 'Girls & Boys Hostel'] } },
+          { propertyType: 'Flat' }
+        ];
+      } else if (gender === 'male') {
+        anyCityQuery.$or = [
+          { hostelCategory: { $in: ['Boys Hostel', 'Girls & Boys Hostel'] } },
+          { propertyType: 'Flat' }
+        ];
+      }
+      properties = await Property.find(anyCityQuery).populate('owner', 'name phone email isVerified').lean();
+    }
+
+    // STRICT post-filter: never allow opposite-gender hostel listings
+    const allowedProperties = properties.filter(property => {
+      const cat = (property.hostelCategory || '').toLowerCase();
+      const isGirlsOnly = cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+      const isBoysOnly = cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+      if (gender === 'male' && isGirlsOnly) return false;
+      if (gender === 'female' && isBoysOnly) return false;
+      return true;
+    });
+
+    const scoredProperties = allowedProperties.map(property => {
       let matchScore = 60;
       const reasons = [];
 
@@ -112,10 +155,10 @@ exports.getPersonalizedRecommendations = async (req, res) => {
       }
 
       // Gender category match
-      if (gender === 'Female' && (property.hostelCategory === 'Girls Hostel' || property.hostelCategory === 'Girls & Boys Hostel')) {
+      if (gender === 'female' && (property.hostelCategory === 'Girls Hostel' || property.hostelCategory === 'Girls & Boys Hostel')) {
         matchScore += 15;
         reasons.push('Safe, female-friendly accommodation with verified security');
-      } else if (gender === 'Male' && (property.hostelCategory === 'Boys Hostel' || property.hostelCategory === 'Girls & Boys Hostel')) {
+      } else if (gender === 'male' && (property.hostelCategory === 'Boys Hostel' || property.hostelCategory === 'Girls & Boys Hostel')) {
         matchScore += 15;
         reasons.push('High student community and proximity to education centers');
       }

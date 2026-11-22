@@ -334,6 +334,22 @@ const Dashboard = ({ initialTab }) => {
 
   const hasStay = Boolean(selectedStay);
   const hasBookedStay = Boolean(selectedStay || pendingStayRequest);
+
+  // Check if resident is in a PG, Flat or Room (where meals & housekeeping are not bundled like in a traditional hostel)
+  const isPgOrFlat = useMemo(() => {
+    const prop = selectedStay || (typeof pendingStayRequest?.itemId === 'object' ? pendingStayRequest?.itemId : null);
+    if (prop) {
+      const pType = (prop.propertyType || '').toLowerCase();
+      const title = (prop.title || '').toLowerCase();
+      if (pType === 'pg' || pType === 'flat' || pType === 'room') return true;
+      if (title.includes('pg') || title.includes('flat') || title.includes('room') || title.includes('apartment') || title.includes('bhk')) return true;
+      if (pType !== 'hostel' && !prop.foodAvailable && !prop.messMenu?.breakfast) return true;
+      return false;
+    }
+    const pref = (userStayPref || user?.propertyType || '').toLowerCase();
+    return pref === 'pg' || pref === 'flat' || pref === 'room';
+  }, [selectedStay, pendingStayRequest, userStayPref, user?.propertyType]);
+
   const hasTiffin = Boolean(
     selectedProviders.some(p => p?.category === 'Tiffin') ||
     requests.some(r => r.itemType === 'ServiceProvider' && (r.serviceDetails?.serviceCategory === 'Tiffin' || r.itemId?.category === 'Tiffin'))
@@ -358,16 +374,16 @@ const Dashboard = ({ initialTab }) => {
     if (rawTab === 'notifications') {
       return 'overview';
     }
-    // Only allow Tiffin tab if resident has actively booked/subscribed to an outside Tiffin service
-    if (rawTab === 'tiffin' && !hasTiffin) {
+    // Allow Tiffin tab if resident has actively booked/subscribed to an outside Tiffin service OR is living in a PG/Flat
+    if (rawTab === 'tiffin' && !hasTiffin && !isPgOrFlat) {
       return 'overview';
     }
-    // Only allow Cleaning tab if resident has actively booked a cleaning/laundry service
-    if (rawTab === 'cleaning' && !hasLaundry) {
+    // Allow Cleaning tab if resident has actively booked a cleaning/laundry service OR is living in a PG/Flat
+    if (rawTab === 'cleaning' && !hasLaundry && !isPgOrFlat) {
       return 'overview';
     }
     return rawTab || 'overview';
-  }, [rawTab, isProvider, isPropertyOwner, isTiffinPartner, isCleaningPartner, hasTiffin, hasLaundry]);
+  }, [rawTab, isProvider, isPropertyOwner, isTiffinPartner, isCleaningPartner, hasTiffin, hasLaundry, isPgOrFlat]);
 
   const wantsRoom = true;
   const wantsRoommate = false;
@@ -398,7 +414,20 @@ const Dashboard = ({ initialTab }) => {
       // 1. Fetch AI bundle recommendations
       const bundleRes = await servicesAPI.getRecommendations().catch(() => ({ success: false }));
       if (bundleRes.success && bundleRes.data) {
-        setBundles(bundleRes.data);
+        let bList = bundleRes.data || [];
+        const activeGender = (user?.gender || roommateProfile?.gender || '').toLowerCase();
+        if (activeGender === 'male') {
+          bList = bList.filter(b => {
+            const cat = (b.property?.hostelCategory || '').toLowerCase();
+            return !(cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed'));
+          });
+        } else if (activeGender === 'female') {
+          bList = bList.filter(b => {
+            const cat = (b.property?.hostelCategory || '').toLowerCase();
+            return !(cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed'));
+          });
+        }
+        setBundles(bList);
       }
 
       // 2. Fetch User requests
@@ -447,11 +476,25 @@ const Dashboard = ({ initialTab }) => {
       if (!propRes.success || !propRes.data?.length) {
         const anyParams = {};
         if (targetCity && targetCity !== 'All' && targetCity !== 'All Cities') anyParams.city = targetCity;
+        if (uGender && uGender !== 'Any') anyParams.gender = uGender;
         propRes = await propertiesAPI.getProperties(anyParams).catch(() => ({ success: false }));
       }
 
       if (propRes.success && propRes.data) {
-        setProperties(propRes.data);
+        let pList = propRes.data;
+        const ug = (uGender || '').toLowerCase();
+        if (ug === 'male') {
+          pList = pList.filter(p => {
+            const cat = (p.hostelCategory || '').toLowerCase();
+            return !(cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed'));
+          });
+        } else if (ug === 'female') {
+          pList = pList.filter(p => {
+            const cat = (p.hostelCategory || '').toLowerCase();
+            return !(cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed'));
+          });
+        }
+        setProperties(pList);
       }
 
 
@@ -548,6 +591,24 @@ const Dashboard = ({ initialTab }) => {
         }
       }
 
+      // Validate gender suitability for active stay (Strict gender hostel policy)
+      const activeUserGender = (user?.gender || roommateProfile?.gender || '').toLowerCase();
+      if (activeStay) {
+        const cat = (activeStay.hostelCategory || activeStay.title || '').toLowerCase();
+        const isGirls = (cat.includes('girls') || cat.includes('female')) && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+        const isBoys = (cat.includes('boys') || cat.includes('male')) && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+        if ((activeUserGender === 'male' && isGirls) || (activeUserGender === 'female' && isBoys)) {
+          console.warn('Mismatched active stay detected by gender policy:', activeStay.title);
+          activeStay = null;
+          if (currentUserId) {
+            localStorage.removeItem(`staysync_selected_stay_${currentUserId}`);
+          }
+          if (user?.id) {
+            localStorage.removeItem(`staysync_selected_stay_${user.id}`);
+          }
+        }
+      }
+
       if (activeStay) {
         setSelectedStay(activeStay);
         if (currentUserId) {
@@ -630,13 +691,22 @@ const Dashboard = ({ initialTab }) => {
     loadDashboardData();
   }, [user, targetCity, userStayPref, userGender]);
 
-  // Reactive sync when roommateProfile or properties load
+  // Reactive sync when roommateProfile or properties load (strictly enforcing gender)
   useEffect(() => {
     if (roommateProfile?.selectedStay && !pendingStayRequest) {
       const stayObj = typeof roommateProfile.selectedStay === 'object'
         ? roommateProfile.selectedStay
         : properties.find(p => p._id === roommateProfile.selectedStay);
       if (stayObj) {
+        const uG = (user?.gender || roommateProfile?.gender || '').toLowerCase();
+        const cat = (stayObj.hostelCategory || stayObj.title || '').toLowerCase();
+        const isGirls = (cat.includes('girls') || cat.includes('female')) && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+        const isBoys = (cat.includes('boys') || cat.includes('male')) && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+        if ((uG === 'male' && isGirls) || (uG === 'female' && isBoys)) {
+          console.warn('Blocked setting cross-gender stay in state from roommateProfile:', stayObj.title);
+          setSelectedStay(null);
+          return;
+        }
         setSelectedStay(stayObj);
       }
     }
@@ -650,6 +720,26 @@ const Dashboard = ({ initialTab }) => {
     }
   }, [roommateProfile, properties, services, pendingStayRequest]);
 
+  // Automatic purge safeguard: Ensure selectedStay never holds a cross-gender stay
+  useEffect(() => {
+    if (selectedStay) {
+      const uG = (user?.gender || roommateProfile?.gender || '').toLowerCase();
+      const cat = (selectedStay.hostelCategory || selectedStay.title || '').toLowerCase();
+      const isGirls = (cat.includes('girls') || cat.includes('female')) && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+      const isBoys = (cat.includes('boys') || cat.includes('male')) && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+      if ((uG === 'male' && isGirls) || (uG === 'female' && isBoys)) {
+        console.warn('Purged cross-gender stay from state & localStorage:', selectedStay.title);
+        setSelectedStay(null);
+        if (currentUserId) {
+          localStorage.removeItem(`staysync_selected_stay_${currentUserId}`);
+        }
+        if (user?.id) {
+          localStorage.removeItem(`staysync_selected_stay_${user.id}`);
+        }
+      }
+    }
+  }, [selectedStay, user?.gender, roommateProfile?.gender, currentUserId, user?.id]);
+
   // Tab switcher
   const switchTab = (tab) => {
     setSearchParams({ tab });
@@ -658,6 +748,15 @@ const Dashboard = ({ initialTab }) => {
 
   // Select Stay Handler (Directly opens Bed & Room Selector)
   const handleSelectStay = async (property) => {
+    if (!property) return;
+    const userGender = (user?.gender || roommateProfile?.gender || '').toLowerCase();
+    const cat = (property?.hostelCategory || '').toLowerCase();
+    const isGirlsOnly = cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+    const isBoysOnly = cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+    if ((userGender === 'male' && isGirlsOnly) || (userGender === 'female' && isBoysOnly)) {
+      alert(`Cannot book: "${property.title}" is a ${isGirlsOnly ? 'Girls' : 'Boys'} Hostel. ${userGender === 'male' ? 'Male' : 'Female'} residents cannot book this property.`);
+      return;
+    }
     setBedSelectorProperty(property);
   };
 
@@ -952,73 +1051,79 @@ const Dashboard = ({ initialTab }) => {
   // Filtered lists
   const tiffinServices = useMemo(() => services.filter(s => s.category === 'Tiffin'), [services]);
   const cleaningServices = useMemo(() => services.filter(s => s.category === 'Cleaning' || s.category === 'Laundry'), [services]);
-  const subscribedTiffin = useMemo(() => selectedProviders.find(p => p?.category === 'Tiffin'), [selectedProviders]);
-  const subscribedLaundry = useMemo(() => selectedProviders.find(p => p?.category === 'Laundry' || p?.category === 'Cleaning'), [selectedProviders]);
+
+  // Subscribed providers checking both state and active backend service requests
+  const subscribedTiffin = useMemo(() => {
+    const fromSelected = selectedProviders.find(p => p?.category === 'Tiffin');
+    if (fromSelected) return fromSelected;
+    const tReq = requests.find(r => 
+      r.itemType === 'ServiceProvider' && 
+      (r.serviceDetails?.serviceCategory === 'Tiffin' || r.itemId?.category === 'Tiffin' || (typeof r.itemId === 'string' && services.some(s => s._id === r.itemId && s.category === 'Tiffin')))
+    );
+    if (tReq) {
+      const srv = typeof tReq.itemId === 'object' && tReq.itemId ? tReq.itemId : services.find(s => s._id === tReq.itemId);
+      if (srv) return { ...srv, requestStatus: tReq.status };
+    }
+    return null;
+  }, [selectedProviders, requests, services]);
+
+  const subscribedLaundry = useMemo(() => {
+    const fromSelected = selectedProviders.find(p => p?.category === 'Laundry' || p?.category === 'Cleaning');
+    if (fromSelected) return fromSelected;
+    const lReq = requests.find(r => 
+      r.itemType === 'ServiceProvider' && 
+      (r.serviceDetails?.serviceCategory === 'Cleaning' || r.serviceDetails?.serviceCategory === 'Laundry' || r.itemId?.category === 'Cleaning' || r.itemId?.category === 'Laundry' || (typeof r.itemId === 'string' && services.some(s => s._id === r.itemId && (s.category === 'Cleaning' || s.category === 'Laundry'))))
+    );
+    if (lReq) {
+      const srv = typeof lReq.itemId === 'object' && lReq.itemId ? lReq.itemId : services.find(s => s._id === lReq.itemId);
+      if (srv) return { ...srv, requestStatus: lReq.status };
+    }
+    return null;
+  }, [selectedProviders, requests, services]);
 
   // Dynamically resolve day menu across booked Hostel mess or subscribed Tiffin kitchen
   const getActiveDayMenu = (dayKey) => {
-    // 1. Check booked Hostel messMenu
+    const key = (dayKey || '').toLowerCase();
+    const dayFallback = DEFAULT_WEEKLY_MENU[key] || DEFAULT_WEEKLY_MENU.monday;
+
+    // 1. Check booked Hostel messMenu for specific weekly overrides
     const stayMess = selectedStay?.messMenu || pendingStayRequest?.itemId?.messMenu;
     const stayWeekly = stayMess?.weeklyMenu;
-    if (stayWeekly && stayWeekly[dayKey] && (stayWeekly[dayKey].breakfast || stayWeekly[dayKey].lunch || stayWeekly[dayKey].dinner)) {
+    if (stayWeekly && stayWeekly[key] && (stayWeekly[key].breakfast || stayWeekly[key].lunch || stayWeekly[key].dinner)) {
       return {
         source: selectedStay?.title || pendingStayRequest?.itemId?.title || 'Hostel Mess',
-        label: DEFAULT_WEEKLY_MENU[dayKey]?.label || dayKey,
-        highlight: DEFAULT_WEEKLY_MENU[dayKey]?.highlight || 'Hostel Mess Menu',
-        breakfast: stayWeekly[dayKey].breakfast || stayMess?.breakfast || DEFAULT_WEEKLY_MENU[dayKey]?.breakfast,
-        lunch: stayWeekly[dayKey].lunch || stayMess?.lunch || DEFAULT_WEEKLY_MENU[dayKey]?.lunch,
-        dinner: stayWeekly[dayKey].dinner || stayMess?.dinner || DEFAULT_WEEKLY_MENU[dayKey]?.dinner,
-        special: stayWeekly[dayKey].special || DEFAULT_WEEKLY_MENU[dayKey]?.special
-      };
-    }
-    if (stayMess && (stayMess.breakfast || stayMess.lunch || stayMess.dinner)) {
-      return {
-        source: selectedStay?.title || pendingStayRequest?.itemId?.title || 'Hostel Mess',
-        label: DEFAULT_WEEKLY_MENU[dayKey]?.label || dayKey,
-        highlight: DEFAULT_WEEKLY_MENU[dayKey]?.highlight || 'Hostel Daily Mess',
-        breakfast: stayMess.breakfast || DEFAULT_WEEKLY_MENU[dayKey]?.breakfast,
-        lunch: stayMess.lunch || DEFAULT_WEEKLY_MENU[dayKey]?.lunch,
-        dinner: stayMess.dinner || DEFAULT_WEEKLY_MENU[dayKey]?.dinner,
-        special: DEFAULT_WEEKLY_MENU[dayKey]?.special
+        label: dayFallback.label || key,
+        highlight: stayWeekly[key].highlight || dayFallback.highlight,
+        breakfast: stayWeekly[key].breakfast || dayFallback.breakfast,
+        lunch: stayWeekly[key].lunch || dayFallback.lunch,
+        dinner: stayWeekly[key].dinner || dayFallback.dinner,
+        special: stayWeekly[key].special || dayFallback.special
       };
     }
 
-    // 2. Check subscribed Tiffin Provider
+    // 2. Check subscribed Tiffin Provider weekly menu
     const tiffinWeekly = subscribedTiffin?.weeklyMenu || subscribedTiffin?.tiffinDetails?.weeklyMenu;
-    if (tiffinWeekly && tiffinWeekly[dayKey] && (tiffinWeekly[dayKey].breakfast || tiffinWeekly[dayKey].lunch || tiffinWeekly[dayKey].dinner)) {
+    if (tiffinWeekly && tiffinWeekly[key] && (tiffinWeekly[key].breakfast || tiffinWeekly[key].lunch || tiffinWeekly[key].dinner)) {
       return {
         source: subscribedTiffin?.businessName || 'Tiffin Partner',
-        label: DEFAULT_WEEKLY_MENU[dayKey]?.label || dayKey,
-        highlight: DEFAULT_WEEKLY_MENU[dayKey]?.highlight || 'Kitchen Live Menu',
-        breakfast: tiffinWeekly[dayKey].breakfast || subscribedTiffin?.tiffinDetails?.dailyMenu?.breakfast || DEFAULT_WEEKLY_MENU[dayKey]?.breakfast,
-        lunch: tiffinWeekly[dayKey].lunch || subscribedTiffin?.tiffinDetails?.dailyMenu?.lunch || DEFAULT_WEEKLY_MENU[dayKey]?.lunch,
-        dinner: tiffinWeekly[dayKey].dinner || subscribedTiffin?.tiffinDetails?.dailyMenu?.dinner || DEFAULT_WEEKLY_MENU[dayKey]?.dinner,
-        special: tiffinWeekly[dayKey].special || subscribedTiffin?.tiffinDetails?.dailyMenu?.sundaySpecial || DEFAULT_WEEKLY_MENU[dayKey]?.special
-      };
-    }
-    const tiffinDaily = subscribedTiffin?.tiffinDetails?.dailyMenu;
-    if (tiffinDaily && (tiffinDaily.lunch || tiffinDaily.dinner)) {
-      return {
-        source: subscribedTiffin?.businessName || 'Tiffin Partner',
-        label: DEFAULT_WEEKLY_MENU[dayKey]?.label || dayKey,
-        highlight: DEFAULT_WEEKLY_MENU[dayKey]?.highlight || 'Kitchen Daily Menu',
-        breakfast: tiffinDaily.breakfast || DEFAULT_WEEKLY_MENU[dayKey]?.breakfast,
-        lunch: tiffinDaily.lunch || DEFAULT_WEEKLY_MENU[dayKey]?.lunch,
-        dinner: tiffinDaily.dinner || DEFAULT_WEEKLY_MENU[dayKey]?.dinner,
-        special: tiffinDaily.sundaySpecial || DEFAULT_WEEKLY_MENU[dayKey]?.special
+        label: dayFallback.label || key,
+        highlight: tiffinWeekly[key].highlight || dayFallback.highlight,
+        breakfast: tiffinWeekly[key].breakfast || dayFallback.breakfast,
+        lunch: tiffinWeekly[key].lunch || dayFallback.lunch,
+        dinner: tiffinWeekly[key].dinner || dayFallback.dinner,
+        special: tiffinWeekly[key].special || dayFallback.special
       };
     }
 
-    // 3. Fallback to default high-quality menu
-    const fb = DEFAULT_WEEKLY_MENU[dayKey] || DEFAULT_WEEKLY_MENU.monday;
+    // 3. Dynamic day-wise schedule: Each day (Monday to Sunday) has a unique, fresh menu!
     return {
-      source: 'City Mess Schedule',
-      label: fb.label,
-      highlight: fb.highlight,
-      breakfast: fb.breakfast,
-      lunch: fb.lunch,
-      dinner: fb.dinner,
-      special: fb.special
+      source: selectedStay?.title || subscribedTiffin?.businessName || 'Hostel Daily Mess',
+      label: dayFallback.label || key,
+      highlight: dayFallback.highlight || 'Daily Fresh Mess Menu',
+      breakfast: dayFallback.breakfast,
+      lunch: dayFallback.lunch,
+      dinner: dayFallback.dinner,
+      special: dayFallback.special
     };
   };
 
@@ -1029,7 +1134,7 @@ const Dashboard = ({ initialTab }) => {
       if (type === 'hostel' || hostCat.includes('hostel')) return 'My Hostel';
       if (type === 'pg' || hostCat.includes('pg')) return 'My PG';
       if (type === 'room') return 'My Room';
-      if (type === 'flat') return 'My Flat';
+      if (type === 'flat' || hostCat.includes('flat')) return 'My Flat';
       return 'My Stay';
     }
     if (pendingStayRequest) {
@@ -1037,9 +1142,10 @@ const Dashboard = ({ initialTab }) => {
       if (itemType === 'hostel') return 'Booked Hostel';
       if (itemType === 'pg') return 'Booked PG';
       if (itemType === 'room') return 'Booked Room';
+      if (itemType === 'flat') return 'Booked Flat';
       return 'Booked Stay';
     }
-    return userStayPref === 'Hostel' ? 'Hostels' : userStayPref === 'PG' ? 'PGs' : userStayPref === 'Room' ? 'Rooms' : 'My Stay';
+    return userStayPref === 'Hostel' ? 'Hostels' : userStayPref === 'PG' ? 'PGs' : userStayPref === 'Flat' ? 'Flats' : userStayPref === 'Room' ? 'Rooms' : 'My Stay';
   }, [selectedStay, pendingStayRequest, userStayPref]);
 
   const dashboardTabs = useMemo(() => {
@@ -1070,15 +1176,24 @@ const Dashboard = ({ initialTab }) => {
       { id: 'overview', label: stayCategoryLabel, icon: Home }
     ];
 
-    // Show Tiffin tab ONLY if the resident has actively booked/subscribed to an outside Tiffin service
-    // (If the hostel already has an in-house mess, it is cleanly integrated in the Hostel Living Overview card)
-    if (hasTiffin) {
-      tabs.push({ id: 'tiffin', label: 'Tiffin Plans', icon: UtensilsCrossed, badge: 'Active' });
+    // Show Tiffin tab if resident subscribed to tiffin OR is living in a PG/Flat (where meals are needed)
+    if (hasTiffin || subscribedTiffin || isPgOrFlat) {
+      tabs.push({ 
+        id: 'tiffin', 
+        label: 'Tiffin Plans', 
+        icon: UtensilsCrossed, 
+        badge: (hasTiffin || subscribedTiffin) ? '✓ Subscribed' : 'Recommended' 
+      });
     }
 
-    // Show Cleaning tab ONLY if the resident has actively booked a cleaning or laundry service
-    if (hasLaundry) {
-      tabs.push({ id: 'cleaning', label: 'Cleaning & Laundry', icon: Sparkles, badge: 'Active' });
+    // Show Cleaning tab if resident subscribed to cleaning OR is living in a PG/Flat (where cleaning is needed)
+    if (hasLaundry || subscribedLaundry || isPgOrFlat) {
+      tabs.push({ 
+        id: 'cleaning', 
+        label: 'Cleaning & Laundry', 
+        icon: Sparkles, 
+        badge: (hasLaundry || subscribedLaundry) ? '✓ Subscribed' : 'Recommended' 
+      });
     }
 
     tabs.push({ id: 'location_hub', label: 'My Location & Hub', icon: Compass });
@@ -1086,7 +1201,7 @@ const Dashboard = ({ initialTab }) => {
     tabs.push({ id: 'requests', label: 'My Bookings & Inquiries', count: requests.length, icon: Send });
 
     return tabs;
-  }, [isProvider, isPropertyOwner, isTiffinPartner, isCleaningPartner, stayCategoryLabel, hasTiffin, hasLaundry, requests.length]);
+  }, [isProvider, isPropertyOwner, isTiffinPartner, isCleaningPartner, stayCategoryLabel, hasTiffin, subscribedTiffin, hasLaundry, subscribedLaundry, isPgOrFlat, requests.length]);
 
   const unreadCount = useMemo(() => notifications.filter(n => !n.readStatus).length, [notifications]);
 
@@ -1957,82 +2072,544 @@ const Dashboard = ({ initialTab }) => {
                   </div>
                 </div>
 
-                {/* 2. HOSTEL MESS & LIVE DINING SCHEDULE */}
-                {(selectedStay.propertyType === 'Hostel' || selectedStay.foodAvailable || selectedStay.messMenu) && (
-                  <div className="bg-white rounded-3xl border border-amber-200/90 p-6 sm:p-7 shadow-xs hover:shadow-md transition-all space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-amber-100">
-                      <div>
-                        <h3 className="text-base font-black text-gray-900 flex items-center gap-2">
-                          <Utensils className="w-4 h-4 text-amber-600" />
-                          <span>{selectedStay.title} – Hostel Mess Menu</span>
-                        </h3>
-                        <p className="text-[11px] text-gray-500 font-medium">Daily breakfast, lunch &amp; dinner prepared fresh in the hostel mess.</p>
+                {/* 2. HOSTEL MESS & LIVE DINING SCHEDULE (Hostel Residents Only) */}
+                {(!isPgOrFlat && (selectedStay.propertyType === 'Hostel' || selectedStay.foodAvailable || selectedStay.messMenu)) && (() => {
+                  const uG = (user?.gender || roommateProfile?.gender || '').toLowerCase();
+                  const cat = (selectedStay.hostelCategory || selectedStay.title || '').toLowerCase();
+                  const isGirls = (cat.includes('girls') || cat.includes('female')) && !cat.includes('boys') && !cat.includes('&');
+                  const isBoys = (cat.includes('boys') || cat.includes('male')) && !cat.includes('girls') && !cat.includes('&');
+                  if ((uG === 'male' && isGirls) || (uG === 'female' && isBoys)) return null;
+
+                  return (
+                    <div className="bg-white rounded-3xl border border-amber-200/90 p-6 sm:p-7 shadow-xs hover:shadow-md transition-all space-y-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-amber-100">
+                        <div>
+                          <h3 className="text-base font-black text-gray-900 flex items-center gap-2">
+                            <Utensils className="w-4 h-4 text-amber-600" />
+                            <span>{selectedStay.title} – Hostel Mess Menu</span>
+                          </h3>
+                          <p className="text-[11px] text-gray-500 font-medium">Daily breakfast, lunch &amp; dinner prepared fresh in the hostel mess.</p>
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 px-3 py-1 rounded-full border border-amber-200">
+                          Hostel Mess Included
+                        </span>
                       </div>
-                      <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 px-3 py-1 rounded-full border border-amber-200">
-                        Hostel Mess Included
-                      </span>
-                    </div>
 
-                    {/* Day Selector Pills */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none">
-                      {[
-                        { key: 'monday', short: 'Mon' },
-                        { key: 'tuesday', short: 'Tue' },
-                        { key: 'wednesday', short: 'Wed' },
-                        { key: 'thursday', short: 'Thu' },
-                        { key: 'friday', short: 'Fri' },
-                        { key: 'saturday', short: 'Sat' },
-                        { key: 'sunday', short: 'Sun' }
-                      ].map((d) => {
-                        const isSelected = selectedTiffinDay === d.key;
-                        const isToday = getTodayKey() === d.key;
+                      {/* Day Selector Pills */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none">
+                        {[
+                          { key: 'monday', short: 'Mon' },
+                          { key: 'tuesday', short: 'Tue' },
+                          { key: 'wednesday', short: 'Wed' },
+                          { key: 'thursday', short: 'Thu' },
+                          { key: 'friday', short: 'Fri' },
+                          { key: 'saturday', short: 'Sat' },
+                          { key: 'sunday', short: 'Sun' }
+                        ].map((d) => {
+                          const isSelected = selectedTiffinDay === d.key;
+                          const isToday = getTodayKey() === d.key;
+                          return (
+                            <button
+                              key={d.key}
+                              type="button"
+                              onClick={() => setSelectedTiffinDay(d.key)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                isSelected
+                                  ? 'bg-[#059669] text-white shadow-xs font-black'
+                                  : 'bg-gray-50 text-gray-700 hover:bg-amber-50 hover:text-amber-800 border border-gray-200'
+                              }`}
+                            >
+                              <span>{d.short}</span>
+                              {isToday && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Active Day Menu Grid */}
+                      {(() => {
+                        const dayMenu = getActiveDayMenu(selectedTiffinDay);
                         return (
-                          <button
-                            key={d.key}
-                            type="button"
-                            onClick={() => setSelectedTiffinDay(d.key)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                              isSelected
-                                ? 'bg-[#059669] text-white shadow-xs font-black'
-                                : 'bg-gray-50 text-gray-700 hover:bg-amber-50 hover:text-amber-800 border border-gray-200'
-                            }`}
-                          >
-                            <span>{d.short}</span>
-                            {isToday && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
-                          </button>
+                          <div key={selectedTiffinDay} className="space-y-3 pt-1 animate-fadeIn">
+                            <div className="flex items-center justify-between text-xs px-1">
+                              <span className="font-extrabold text-amber-950 flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                <span>{dayMenu.label} ({dayMenu.highlight})</span>
+                              </span>
+                              {selectedTiffinDay === getTodayKey() && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-200">
+                                  ✓ Today's Active Schedule
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div className="p-3.5 bg-amber-50/40 rounded-2xl border border-amber-200/70 space-y-1">
+                                <span className="text-[11px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Coffee className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span>Breakfast (8:30 AM)</span>
+                                </span>
+                                <p className="text-xs font-bold text-gray-900 leading-relaxed">{dayMenu.breakfast}</p>
+                              </div>
+                              <div className="p-3.5 bg-amber-50/40 rounded-2xl border border-amber-200/70 space-y-1">
+                                <span className="text-[11px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Utensils className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>Lunch (1:00 PM)</span>
+                                </span>
+                                <p className="text-xs font-bold text-gray-900 leading-relaxed">{dayMenu.lunch}</p>
+                              </div>
+                              <div className="p-3.5 bg-amber-50/40 rounded-2xl border border-amber-200/70 space-y-1">
+                                <span className="text-[11px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Moon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span>Dinner (8:30 PM)</span>
+                                </span>
+                                <p className="text-xs font-bold text-gray-900 leading-relaxed">{dayMenu.dinner}</p>
+                              </div>
+                            </div>
+
+                            {dayMenu.special && (
+                              <div className="p-2.5 px-3.5 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200/80 flex items-center justify-between text-xs font-bold text-amber-900">
+                                <span className="flex items-center gap-1.5">
+                                  <span>🌟 Chef's Daily Special Sweet / Treat:</span>
+                                  <strong className="text-amber-950 font-black">{dayMenu.special}</strong>
+                                </span>
+                                <span className="text-[10px] uppercase font-black tracking-wider text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">
+                                  Freshly Made
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         );
-                      })}
+                      })()}
+                    </div>
+                  );
+                })()}
+
+                {/* 3. ESSENTIAL SERVICES & SMART SUGGESTIONS (PG & Flat Residents) */}
+                {isPgOrFlat && (
+                  <div className="space-y-6 pt-1">
+                    {/* Notice & Context Banner */}
+                    <div className="p-5 bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-cyan-500/10 rounded-3xl border border-amber-200/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black shadow-xs shrink-0">
+                          <UtensilsCrossed className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full inline-block border border-amber-200">
+                              PG &amp; Flat Living Services
+                            </span>
+                            <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                              Smart Daily Living Add-ons
+                            </span>
+                          </div>
+                          <h3 className="text-base font-black text-gray-900 mt-1">
+                            Daily Meals, Housekeeping &amp; Laundry Add-ons
+                          </h3>
+                          <p className="text-xs text-gray-600 font-medium mt-0.5">
+                            In PG and Flat living, meals and housekeeping are not bundled by default. Subscribe to verified neighborhood partners below:
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => switchTab('tiffin')}
+                          className="px-3.5 py-2 bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                        >
+                          <Utensils className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{subscribedTiffin ? 'View Active Tiffin Plan' : 'Explore Tiffins'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => switchTab('cleaning')}
+                          className="px-3.5 py-2 bg-white text-cyan-800 border border-cyan-300 hover:bg-cyan-50 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-cyan-600" />
+                          <span>{subscribedLaundry ? 'View Active Cleaning' : 'Explore Cleaning'}</span>
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Active Day Menu Grid */}
-                    {(() => {
-                      const dayMenu = getActiveDayMenu(selectedTiffinDay);
-                      return (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                          <div className="p-3.5 bg-amber-50/40 rounded-2xl border border-amber-200/70 space-y-1">
-                            <span className="text-[11px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                              <Coffee className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span>Breakfast (8:30 AM)</span>
-                            </span>
-                            <p className="text-xs font-bold text-gray-900 leading-relaxed">{dayMenu.breakfast}</p>
+                    {/* A. TIFFIN SECTION: SUBSCRIBED PLAN OR SMART SUGGESTIONS */}
+                    {subscribedTiffin ? (
+                      <div className="bg-white rounded-3xl border-2 border-emerald-400 p-6 sm:p-7 shadow-xs space-y-4">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pb-3 border-b border-gray-150">
+                          <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-2xs">
+                              <UtensilsCrossed className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                  ✓ Aapka Active Subscribed Plan (Liya Hua Plan)
+                                </span>
+                                <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                  Doorstep Delivery to Your Room
+                                </span>
+                              </div>
+                              <h3 className="text-lg font-black text-gray-900 mt-1">
+                                {subscribedTiffin.businessName}
+                              </h3>
+                            </div>
                           </div>
-                          <div className="p-3.5 bg-amber-50/40 rounded-2xl border border-amber-200/70 space-y-1">
-                            <span className="text-[11px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                              <Utensils className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              <span>Lunch (1:00 PM)</span>
-                            </span>
-                            <p className="text-xs font-bold text-gray-900 leading-relaxed">{dayMenu.lunch}</p>
-                          </div>
-                          <div className="p-3.5 bg-amber-50/40 rounded-2xl border border-amber-200/70 space-y-1">
-                            <span className="text-[11px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                              <Moon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span>Dinner (8:30 PM)</span>
-                            </span>
-                            <p className="text-xs font-bold text-gray-900 leading-relaxed">{dayMenu.dinner}</p>
+
+                          <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
+                            <div className="text-right">
+                              <span className="text-xl font-black text-emerald-700 block">
+                                ₹{(subscribedTiffin.tiffinDetails?.monthlyPrice || 2400).toLocaleString('en-IN')}/mo
+                              </span>
+                              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Lunch &amp; Dinner Included</span>
+                            </div>
+                            <a
+                              href={`tel:${subscribedTiffin.contactPhone || '9826012345'}`}
+                              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                            >
+                              <Phone className="w-3.5 h-3.5" /> Call Kitchen
+                            </a>
+                            <Link
+                              to="/chat"
+                              className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-black rounded-xl flex items-center gap-1.5 shadow-2xs"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 text-gray-600" /> Chat
+                            </Link>
                           </div>
                         </div>
-                      );
-                    })()}
+
+                        {/* Day Selector Pills & Live Kitchen Menu Broadcast */}
+                        <div className="space-y-3 pt-1">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                            <span className="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              <span>Live Day-Wise Kitchen Menu Broadcast</span>
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMealPaused(!mealPaused);
+                                  setTicketNotice(mealPaused ? 'Meal resumed for today!' : 'Today\'s meal paused. Daily discount adjusted in billing.');
+                                }}
+                                className={`px-3 py-1 text-[11px] font-extrabold rounded-lg border transition-all cursor-pointer ${
+                                  mealPaused
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                                }`}
+                              >
+                                {mealPaused ? 'Resume Today\'s Meal' : 'Pause Today\'s Meal'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => switchTab('tiffin')}
+                                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 underline"
+                              >
+                                Manage on Tiffin Tab →
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                            {[
+                              { key: 'monday', short: 'Mon' },
+                              { key: 'tuesday', short: 'Tue' },
+                              { key: 'wednesday', short: 'Wed' },
+                              { key: 'thursday', short: 'Thu' },
+                              { key: 'friday', short: 'Fri' },
+                              { key: 'saturday', short: 'Sat' },
+                              { key: 'sunday', short: 'Sun' }
+                            ].map((d) => {
+                              const isSelected = selectedTiffinDay === d.key;
+                              const isToday = getTodayKey() === d.key;
+                              return (
+                                <button
+                                  key={d.key}
+                                  type="button"
+                                  onClick={() => setSelectedTiffinDay(d.key)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                    isSelected
+                                      ? 'bg-[#059669] text-white shadow-xs font-black'
+                                      : 'bg-gray-50 text-gray-700 hover:bg-emerald-50 hover:text-emerald-800 border border-gray-200'
+                                  }`}
+                                >
+                                  <span>{d.short}</span>
+                                  {isToday && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {(() => {
+                            const dayMenu = getActiveDayMenu(selectedTiffinDay);
+                            return (
+                              <div key={selectedTiffinDay} className="space-y-3 pt-1 animate-fadeIn">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  <div className="p-3 bg-emerald-50/40 rounded-2xl border border-emerald-200/70 space-y-1">
+                                    <span className="text-[11px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Coffee className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      <span>Breakfast (8:30 AM)</span>
+                                    </span>
+                                    <p className="text-xs font-bold text-gray-900 leading-relaxed">{dayMenu.breakfast}</p>
+                                  </div>
+                                  <div className="p-3 bg-amber-50/40 rounded-2xl border border-amber-200/70 space-y-1">
+                                    <span className="text-[11px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Utensils className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                      <span>Lunch (1:00 PM)</span>
+                                    </span>
+                                    <p className="text-xs font-bold text-gray-900 leading-relaxed">{dayMenu.lunch}</p>
+                                  </div>
+                                  <div className="p-3 bg-emerald-50/40 rounded-2xl border border-emerald-200/70 space-y-1">
+                                    <span className="text-[11px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Moon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      <span>Dinner (8:30 PM)</span>
+                                    </span>
+                                    <p className="text-xs font-bold text-gray-900 leading-relaxed">{dayMenu.dinner}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-3xl border border-amber-200/90 p-6 sm:p-7 shadow-xs space-y-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-amber-100">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-200">
+                                Essential Add-On for PG &amp; Flat
+                              </span>
+                              <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                ⚡ Hot Doorstep Meals
+                              </span>
+                            </div>
+                            <h3 className="text-base font-black text-gray-900 mt-1 flex items-center gap-2">
+                              <Utensils className="w-4 h-4 text-amber-600" />
+                              <span>Recommended Daily Tiffin Kitchens in {targetCity}</span>
+                            </h3>
+                            <p className="text-[11px] text-gray-500 font-medium">
+                              Select a verified kitchen to get fresh home-cooked lunch &amp; dinner. Subscribing sends an instant booking request to the provider.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => switchTab('tiffin')}
+                            className="text-xs font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>View All Tiffins</span>
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Top 3 Tiffin Suggestions Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {tiffinServices.slice(0, 3).map(srv => {
+                            const isSubscribed = selectedProviders.some(p => (p?._id || p) === srv._id);
+                            return (
+                              <div key={srv._id} className="bg-amber-50/20 rounded-2xl border border-amber-200/80 p-4 hover:border-amber-400 hover:shadow-xs transition-all flex flex-col justify-between space-y-3">
+                                <div className="space-y-2">
+                                  <div className="h-32 rounded-xl overflow-hidden relative bg-gray-100">
+                                    <img
+                                      src={normalizeImageUrl(srv.photos?.[0]) || 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=600&auto=format&fit=crop&q=80'}
+                                      alt={srv.businessName}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <span className="absolute top-2 left-2 bg-amber-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
+                                      {srv.tiffinDetails?.mealType || 'Pure Veg'}
+                                    </span>
+                                    <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-xs text-white text-xs font-black px-2 py-0.5 rounded-lg">
+                                      ₹{(srv.tiffinDetails?.monthlyPrice || 2400).toLocaleString('en-IN')}/mo
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <h4 className="font-black text-sm text-gray-900">{srv.businessName}</h4>
+                                    <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5 font-medium">
+                                      <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span>{srv.address || srv.city}</span>
+                                    </p>
+                                  </div>
+
+                                  <div className="p-2.5 bg-amber-50/70 rounded-xl border border-amber-100 text-[11px] space-y-0.5">
+                                    <span className="text-[10px] font-bold text-amber-800 uppercase block">Daily Menu Highlights</span>
+                                    <p className="text-gray-700 font-medium line-clamp-2">
+                                      {srv.tiffinDetails?.description || 'Dal Tadka, Shahi Paneer, 4 Tawa Rotis, Jeera Rice, Salad & Sweet.'}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleInstantBookService(srv)}
+                                  disabled={bookingLoading}
+                                  className="w-full py-2.5 bg-[#059669] hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Subscribe Plan &amp; Send Request</span>
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* B. CLEANING & LAUNDRY SECTION */}
+                    {subscribedLaundry ? (
+                      <div className="bg-white rounded-3xl border-2 border-cyan-400 p-6 sm:p-7 shadow-xs space-y-4">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pb-3 border-b border-gray-150">
+                          <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-cyan-100 text-cyan-700 flex items-center justify-center shrink-0 shadow-2xs">
+                              <Sparkles className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-800 bg-cyan-100 px-2.5 py-0.5 rounded-full border border-cyan-200">
+                                  ✓ Aapka Active Subscribed Plan (Liya Hua Plan)
+                                </span>
+                                <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                  Weekly Routine &amp; Laundry
+                                </span>
+                              </div>
+                              <h3 className="text-lg font-black text-gray-900 mt-1">
+                                {subscribedLaundry.businessName}
+                              </h3>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setTicketNotice('Doorstep cleaning pickup scheduled for tomorrow 10:00 AM!')}
+                              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer active:scale-95"
+                            >
+                              Request Visit Today
+                            </button>
+                            <a
+                              href={`tel:${subscribedLaundry.contactPhone || '9826012345'}`}
+                              className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-xl flex items-center gap-1"
+                            >
+                              <Phone className="w-3.5 h-3.5 text-cyan-700" /> Call
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => switchTab('cleaning')}
+                              className="text-[11px] font-bold text-cyan-700 hover:text-cyan-900 underline ml-2"
+                            >
+                              Manage on Cleaning Tab →
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                          <div className="p-3.5 bg-cyan-50/50 rounded-2xl border border-cyan-100">
+                            <span className="text-[10px] font-bold text-cyan-800 uppercase block">Weekly Routine</span>
+                            <strong className="text-gray-900 font-extrabold block mt-0.5">Tuesday &amp; Friday Visits</strong>
+                            <span className="text-[11px] text-gray-500 font-medium">Brooming, floor mopping with disinfectant, bathroom scrub</span>
+                          </div>
+                          <div className="p-3.5 bg-blue-50/50 rounded-2xl border border-blue-100">
+                            <span className="text-[10px] font-bold text-blue-800 uppercase block">Laundry Pickup</span>
+                            <strong className="text-gray-900 font-extrabold block mt-0.5">10kg Monthly Plan</strong>
+                            <span className="text-[11px] text-gray-500 font-medium">Doorstep wash, dry and steam iron with 24-hr return</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-3xl border border-cyan-200/90 p-6 sm:p-7 shadow-xs space-y-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-cyan-100">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black uppercase tracking-wider bg-cyan-100 text-cyan-900 px-2.5 py-0.5 rounded-full border border-cyan-200">
+                                Essential Add-On for PG &amp; Flat
+                              </span>
+                              <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                                ✨ Sparkling Room Care
+                              </span>
+                            </div>
+                            <h3 className="text-base font-black text-gray-900 mt-1 flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-cyan-600" />
+                              <span>Housekeeping &amp; Laundry Services for Your Room</span>
+                            </h3>
+                            <p className="text-[11px] text-gray-500 font-medium">
+                              Keep your room spotless and clothes fresh. Choose an on-demand package to send an instant request:
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => switchTab('cleaning')}
+                            className="text-xs font-bold text-cyan-800 hover:text-cyan-950 flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>View All Packages</span>
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* 3 Instant Packages */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {[
+                            {
+                              title: 'Regular Floor Sweep & Mop',
+                              price: '₹299/visit',
+                              priceNum: 299,
+                              desc: 'Brooming, phenyl floor mopping, dusting desk, and garbage disposal.',
+                              icon: Brush,
+                              tag: 'Weekly Need'
+                            },
+                            {
+                              title: 'Bathroom Deep Clean & Scrub',
+                              price: '₹449/visit',
+                              priceNum: 449,
+                              desc: 'Floor and wall tile scrubbing, toilet pot acid descaling & sanitization.',
+                              icon: Sparkles,
+                              tag: 'High Hygiene'
+                            },
+                            {
+                              title: 'Doorstep Wash & Steam Iron',
+                              price: '₹499/month',
+                              priceNum: 499,
+                              desc: 'Weekly 15 clothes wash, dry & crisp steam iron with 24-hr doorstep return.',
+                              icon: Shirt,
+                              tag: 'Laundry Care'
+                            }
+                          ].map((pkg, i) => {
+                            const Icon = pkg.icon;
+                            return (
+                              <div key={i} className="bg-cyan-50/20 rounded-2xl border border-cyan-200/80 p-4 hover:border-cyan-400 hover:shadow-xs transition-all flex flex-col justify-between space-y-3">
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-center">
+                                    <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center">
+                                      <Icon className="w-4 h-4" />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-cyan-800 bg-cyan-100 px-2 py-0.5 rounded-full">
+                                      {pkg.tag}
+                                    </span>
+                                  </div>
+                                  <h4 className="font-extrabold text-sm text-gray-900">{pkg.title}</h4>
+                                  <strong className="text-base font-black text-cyan-700 block">{pkg.price}</strong>
+                                  <p className="text-[11px] text-gray-500 font-medium leading-snug">{pkg.desc}</p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  disabled={bookingLoading}
+                                  onClick={() => {
+                                    const partner = cleaningServices.find(s => pkg.title.toLowerCase().includes('laundry') ? s.category === 'Laundry' : s.category === 'Cleaning') || cleaningServices[0] || services.find(s => s.category === 'Cleaning') || { _id: services[0]?._id, businessName: 'StaySync Housekeeping Partner', category: 'Cleaning', city: targetCity };
+                                    if (partner && partner._id) {
+                                      handleInstantBookService(partner, pkg.title, pkg.priceNum);
+                                    } else {
+                                      setTicketNotice(`Request submitted for "${pkg.title}"!`);
+                                    }
+                                  }}
+                                  className="w-full py-2 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-700 hover:to-blue-800 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Book Plan &amp; Send Request</span>
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2485,7 +3062,7 @@ const Dashboard = ({ initialTab }) => {
         {/* ================================================== */}
         {/* TAB 2: TIFFIN & DAILY MEALS                        */}
         {/* ================================================== */}
-        {activeTab === 'tiffin' && (hasTiffin || isTiffinPartner) && (
+        {activeTab === 'tiffin' && (hasTiffin || subscribedTiffin || isTiffinPartner || isPgOrFlat) && (
           <div className="space-y-8 animate-fadeIn">
             {/* Header banner */}
             <div className="bg-[#059669] text-white p-6 sm:p-8 rounded-3xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -2515,15 +3092,15 @@ const Dashboard = ({ initialTab }) => {
 
             {/* If Subscribed: Active Meal Schedule Card */}
             {subscribedTiffin ? (
-              <div className="bg-white rounded-3xl border-2 border-amber-300 p-6 sm:p-8 shadow-xs space-y-5">
+              <div className="bg-white rounded-3xl border-2 border-emerald-400 p-6 sm:p-8 shadow-xs space-y-5">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-3 border-b border-gray-150">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                       <UtensilsCrossed className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full inline-block">
-                        ✓ Your Active Tiffin Partner
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full inline-block border border-emerald-300">
+                        ✓ Aapka Active Subscribed Plan (Liya Hua Plan)
                       </span>
                       <h3 className="text-lg font-black text-gray-900 mt-0.5">
                         {subscribedTiffin.businessName}
@@ -2897,7 +3474,7 @@ const Dashboard = ({ initialTab }) => {
         {/* ================================================== */}
         {/* TAB 3: ROOM CLEANING & LAUNDRY SERVICES            */}
         {/* ================================================== */}
-        {activeTab === 'cleaning' && (hasLaundry || isCleaningPartner) && (
+        {activeTab === 'cleaning' && (hasLaundry || subscribedLaundry || isCleaningPartner || isPgOrFlat) && (
           <div className="space-y-8 animate-fadeIn">
             {/* Header banner */}
             <div className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white p-6 sm:p-8 rounded-3xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -2927,15 +3504,15 @@ const Dashboard = ({ initialTab }) => {
 
             {/* Subscribed Cleaning / Laundry status card (if active) */}
             {subscribedLaundry ? (
-              <div className="bg-white rounded-3xl border-2 border-cyan-300 p-6 sm:p-8 shadow-xs space-y-4">
+              <div className="bg-white rounded-3xl border-2 border-cyan-400 p-6 sm:p-8 shadow-xs space-y-4">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-3 border-b border-gray-150">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center shrink-0">
                       <Sparkles className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="text-[10px] font-black uppercase tracking-wider text-cyan-800 bg-cyan-100 px-2 py-0.5 rounded-full inline-block">
-                        ✓ Active Service Partner
+                      <span className="text-[10px] font-black uppercase tracking-wider text-cyan-800 bg-cyan-100 px-2.5 py-0.5 rounded-full inline-block border border-cyan-300">
+                        ✓ Aapka Active Subscribed Plan (Liya Hua Plan)
                       </span>
                       <h3 className="text-lg font-black text-gray-900 mt-0.5">
                         {subscribedLaundry.businessName}

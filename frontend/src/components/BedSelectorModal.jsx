@@ -28,6 +28,13 @@ const BedSelectorModal = ({ property, onClose, onBookingSuccess }) => {
   const [checkOutDate, setCheckOutDate] = useState(nextMonthStr);
   const [durationMonths, setDurationMonths] = useState(1);
 
+  // Gender Policy Check
+  const userGender = (user?.gender || '').toLowerCase();
+  const cat = (property?.hostelCategory || '').toLowerCase();
+  const isGirlsOnly = cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+  const isBoysOnly = cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+  const isGenderMismatched = (userGender === 'male' && isGirlsOnly) || (userGender === 'female' && isBoysOnly);
+
   // Holding state
   const [holdingLoading, setHoldingLoading] = useState(false);
   const [holdSuccessData, setHoldSuccessData] = useState(null);
@@ -104,6 +111,10 @@ const BedSelectorModal = ({ property, onClose, onBookingSuccess }) => {
 
   // Hold Bed action
   const handleHoldAndBook = async () => {
+    if (isGenderMismatched) {
+      setError(`Cannot book: This property is a ${isGirlsOnly ? 'Girls' : 'Boys'} Hostel exclusively for ${isGirlsOnly ? 'female' : 'male'} residents.`);
+      return;
+    }
     if (!selectedRoom || !selectedBed) {
       setError('Please select an available bed first.');
       return;
@@ -231,6 +242,21 @@ const BedSelectorModal = ({ property, onClose, onBookingSuccess }) => {
                 <Clock className="w-3.5 h-3.5" />
                 <span>{formatCountdown(holdCountdown)}</span>
               </span>
+            </div>
+          )}
+
+          {/* Gender Restriction Alert */}
+          {isGenderMismatched && (
+            <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <strong className="block text-xs sm:text-sm font-extrabold text-rose-900">
+                  Gender Policy Restriction: {isGirlsOnly ? 'Girls Only Hostel' : 'Boys Only Hostel'}
+                </strong>
+                <p className="text-xs text-rose-700 mt-0.5 font-medium">
+                  This property is designated exclusively for {isGirlsOnly ? 'female' : 'male'} residents. {userGender === 'male' ? 'Male' : 'Female'} residents cannot book or hold beds here.
+                </p>
+              </div>
             </div>
           )}
 
@@ -441,15 +467,17 @@ const BedSelectorModal = ({ property, onClose, onBookingSuccess }) => {
           <div className="pt-2">
             <button
               type="button"
-              disabled={!selectedBed || holdingLoading}
+              disabled={!selectedBed || holdingLoading || isGenderMismatched}
               onClick={handleHoldAndBook}
               className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all shadow-md flex items-center justify-center gap-2 ${
-                !selectedBed || holdingLoading
+                !selectedBed || holdingLoading || isGenderMismatched
                   ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   : 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer hover:shadow-purple-600/25 active:scale-98'
               }`}
             >
-              {holdingLoading ? (
+              {isGenderMismatched ? (
+                <span>Restricted: {isGirlsOnly ? 'Girls Only' : 'Boys Only'} Hostel</span>
+              ) : holdingLoading ? (
                 <span>Locking Bed & Submitting Request...</span>
               ) : (
                 <>

@@ -731,14 +731,18 @@ async function seedRichDummyData() {
     ];
 
     let profIdx = 0;
+    const boysHostel = await Property.findOne({ hostelCategory: 'Boys Hostel' });
+    const girlsHostel = await Property.findOne({ hostelCategory: 'Girls Hostel' }) || defaultProperty;
+
     for (const u of usersWithoutProfiles) {
       const existingProfile = await RoommateProfile.findOne({ user: u._id });
       if (!existingProfile && profIdx < diverseProfiles.length) {
         const pData = diverseProfiles[profIdx++];
+        const matchingStay = pData.gender === 'Female' ? girlsHostel : boysHostel;
         await RoommateProfile.create({
           user: u._id,
           ...pData,
-          selectedStay: defaultProperty._id
+          selectedStay: matchingStay ? matchingStay._id : defaultProperty._id
         });
       }
     }

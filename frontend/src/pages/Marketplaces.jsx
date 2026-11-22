@@ -240,6 +240,7 @@ const Marketplaces = () => {
         if (foodOnly) filters.foodAvailable = 'true';
         if (searchRadius) filters.radius = searchRadius;
         if (sortBy && sortBy !== 'relevant') filters.sortBy = sortBy;
+        if (user?.gender) filters.gender = user.gender;
         if (userCoords) {
           filters.userLat = userCoords.lat;
           filters.userLng = userCoords.lng;
@@ -269,7 +270,7 @@ const Marketplaces = () => {
 
   useEffect(() => {
     loadMarketplaceData();
-  }, [activeTab, city, areaSearch, propertyType, hostelCategory, maxBudget, roomType, foodOnly, searchRadius, sortBy, userCoords]);
+  }, [activeTab, city, areaSearch, propertyType, hostelCategory, maxBudget, roomType, foodOnly, searchRadius, sortBy, userCoords, user?.gender]);
 
   // Pre-fetch count of services
   useEffect(() => {
@@ -287,6 +288,14 @@ const Marketplaces = () => {
   const handleSelectStay = async (property) => {
     if (!user) {
       navigate('/login');
+      return;
+    }
+    const userGender = (user?.gender || '').toLowerCase();
+    const cat = (property?.hostelCategory || '').toLowerCase();
+    const isGirlsOnly = cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+    const isBoysOnly = cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+    if ((userGender === 'male' && isGirlsOnly) || (userGender === 'female' && isBoysOnly)) {
+      alert(`Cannot book: "${property.title}" is a ${isGirlsOnly ? 'Girls' : 'Boys'} Hostel. ${userGender === 'male' ? 'Male' : 'Female'} residents cannot book this property.`);
       return;
     }
     setBedSelectorProperty(property);
@@ -388,6 +397,45 @@ const Marketplaces = () => {
   };
 
   const hasActiveFilters = Boolean(areaSearch || propertyType || hostelCategory || maxBudget || roomType || foodOnly);
+
+  const userGender = (user?.gender || '').toLowerCase();
+
+  // Dynamic Hostel Category filter options adapted to the resident's gender
+  const hostelCategoryOptions = useMemo(() => {
+    if (userGender === 'male') {
+      return [
+        { label: 'All Stays for Boys', value: '' },
+        { label: 'Boys Only Hostel/PG', value: 'Boys Hostel' },
+        { label: 'Co-ed / Coliving', value: 'Girls & Boys Hostel' }
+      ];
+    }
+    if (userGender === 'female') {
+      return [
+        { label: 'All Stays for Girls', value: '' },
+        { label: 'Girls Only Hostel/PG', value: 'Girls Hostel' },
+        { label: 'Co-ed / Coliving', value: 'Girls & Boys Hostel' }
+      ];
+    }
+    return [
+      { label: 'All Genders', value: '' },
+      { label: 'Boys Hostel', value: 'Boys Hostel' },
+      { label: 'Girls Hostel', value: 'Girls Hostel' },
+      { label: 'Co-ed / Coliving', value: 'Girls & Boys Hostel' }
+    ];
+  }, [userGender]);
+
+  // Client-side filtering safeguard: ensure boys never see girls hostels & vice versa
+  const displayedProperties = useMemo(() => {
+    if (!userGender) return properties;
+    return properties.filter(p => {
+      const cat = (p.hostelCategory || '').toLowerCase();
+      const isGirlsOnly = cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+      const isBoysOnly = cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+      if (userGender === 'male' && isGirlsOnly) return false;
+      if (userGender === 'female' && isBoysOnly) return false;
+      return true;
+    });
+  }, [properties, userGender]);
 
   // Prevent flash of marketplace content for Admin and Providers before navigation completes
   if (user && (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || isProviderUser(user))) {
@@ -536,7 +584,7 @@ const Marketplaces = () => {
             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
               activeTab === 'rooms' ? 'bg-emerald-800 text-white' : 'bg-emerald-100 text-emerald-800'
             }`}>
-              {properties.length}
+              {displayedProperties.length}
             </span>
           </button>
 
@@ -693,12 +741,7 @@ const Marketplaces = () => {
                   Hostel Category
                 </label>
                 <div className="space-y-1.5 text-xs font-medium text-slate-600">
-                  {[
-                    { label: 'All Genders', value: '' },
-                    { label: 'Boys Hostel', value: 'Boys Hostel' },
-                    { label: 'Girls Hostel', value: 'Girls Hostel' },
-                    { label: 'Co-ed / Coliving', value: 'Girls & Boys Hostel' }
-                  ].map(opt => (
+                  {hostelCategoryOptions.map(opt => (
                     <label key={opt.value} className="flex items-center gap-2 cursor-pointer hover:text-slate-900">
                       <input
                         type="radio"
@@ -797,7 +840,7 @@ const Marketplaces = () => {
                   )}
                 </button>
                 <span className="text-xs text-slate-500 font-semibold">
-                  {properties.length} Stays Available
+                  {displayedProperties.length} Stays Available
                 </span>
               </div>
 
@@ -806,7 +849,7 @@ const Marketplaces = () => {
                 <div className="flex items-center gap-2 text-slate-700">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   <span>
-                    Showing <strong className="text-slate-900 font-bold">{properties.length}</strong> stays in{' '}
+                    Showing <strong className="text-slate-900 font-bold">{displayedProperties.length}</strong> stays in{' '}
                     <strong className="text-emerald-800 font-bold">{city && city !== 'All' ? city : 'All Cities'}{areaSearch ? ` · ${areaSearch}` : ''}</strong>
                   </span>
                 </div>
@@ -872,7 +915,7 @@ const Marketplaces = () => {
                   <span className="text-3xl animate-spin inline-block text-emerald-600 mb-2">↻</span>
                   <p className="text-xs font-bold text-slate-500">Finding verified stays...</p>
                 </div>
-              ) : properties.length === 0 ? (
+              ) : displayedProperties.length === 0 ? (
                 <div className="text-center py-16 bg-white border border-slate-200 rounded-2xl space-y-3">
                   <Home className="w-10 h-10 text-slate-300 mx-auto" />
                   <p className="text-sm font-bold text-slate-700">No properties found matching your criteria {city && city !== 'All' ? `in ${city}` : 'across cities'}.</p>
@@ -887,7 +930,7 @@ const Marketplaces = () => {
                 </div>
               ) : viewMode === 'map' ? (
                 <PropertiesMap
-                  properties={properties}
+                  properties={displayedProperties}
                   activeTab="rooms"
                   selectedCity={city}
                   onInquire={handleSelectStay}
@@ -902,7 +945,7 @@ const Marketplaces = () => {
                 />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {properties.map(p => (
+                  {displayedProperties.map(p => (
                     <PropertyCard
                       key={p._id}
                       property={p}
@@ -1003,12 +1046,7 @@ const Marketplaces = () => {
                         Hostel Category
                       </label>
                       <div className="grid grid-cols-2 gap-2 text-xs font-medium text-slate-600">
-                        {[
-                          { label: 'All Genders', value: '' },
-                          { label: 'Boys Hostel', value: 'Boys Hostel' },
-                          { label: 'Girls Hostel', value: 'Girls Hostel' },
-                          { label: 'Co-ed / Coliving', value: 'Girls & Boys Hostel' }
-                        ].map(opt => (
+                        {hostelCategoryOptions.map(opt => (
                           <label key={opt.value} className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer ${
                             hostelCategory === opt.value ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold' : 'border-slate-200'
                           }`}>
@@ -1074,7 +1112,7 @@ const Marketplaces = () => {
                       onClick={() => setMobileFiltersOpen(false)}
                       className="w-full py-3 bg-[#059669] hover:bg-[#047857] text-white font-bold text-sm rounded-xl shadow-md cursor-pointer"
                     >
-                      Apply Filters ({properties.length} Stays)
+                      Apply Filters ({displayedProperties.length} Stays)
                     </button>
                   </div>
                 </div>

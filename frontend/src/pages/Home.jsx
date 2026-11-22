@@ -609,7 +609,7 @@ const Home = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-1">
           {[
             {
               title: 'Boys Hostel',
@@ -628,24 +628,6 @@ const Home = () => {
               icon: ShieldCheck,
               color: 'text-rose-600 bg-rose-50 border-rose-200',
               link: '/marketplace?tab=rooms&type=hostel&hostelCategory=Girls%20Hostel'
-            },
-            {
-              title: 'Co-ed / Coliving',
-              tag: 'Community & Lounges',
-              desc: 'Modern co-living spaces for working professionals with high-speed WiFi & recreation zones.',
-              count: '20+ Modern Spaces',
-              icon: Users,
-              color: 'text-purple-600 bg-purple-50 border-purple-200',
-              link: '/marketplace?tab=rooms&type=hostel&hostelCategory=Girls%20%26%20Boys%20Hostel'
-            },
-            {
-              title: 'Premium PGs',
-              tag: 'Meals & Housekeeping',
-              desc: 'Fully furnished paying guest rooms with daily room cleaning, power backup & homely mess.',
-              count: '30+ Premium PGs',
-              icon: Sparkles,
-              color: 'text-amber-600 bg-amber-50 border-amber-200',
-              link: '/marketplace?tab=rooms&type=pg'
             },
             {
               title: 'Independent Flats',

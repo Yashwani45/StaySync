@@ -51,6 +51,23 @@ exports.getProperties = async (req, res) => {
   try {
     let queryFilters = {};
 
+    // Determine user gender from query or authorization token
+    let effectiveGender = (req.query.gender || '').trim();
+    if (!effectiveGender && req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      try {
+        const token = req.headers.authorization.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded && decoded.id) {
+          const User = require('../models/User');
+          const u = await User.findById(decoded.id).select('gender');
+          if (u && u.gender) effectiveGender = u.gender;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    const userGenderLower = effectiveGender.toLowerCase();
+
     // 1. NLP Search parsing
     if (req.query.nlpSearch) {
       const rawQuery = req.query.nlpSearch.trim();
@@ -87,16 +104,39 @@ exports.getProperties = async (req, res) => {
         conditions.push({ propertyType: parsedFilters.propertyType });
       }
 
-      if (parsedFilters.hostelCategory) {
+      if (parsedFilters.gender) {
+        const nlpG = parsedFilters.gender.toLowerCase();
+        if (nlpG === 'female') {
+          conditions.push({
+            $or: [
+              { hostelCategory: { $in: ['Girls Hostel', 'Girls & Boys Hostel'] } },
+              { propertyType: 'Flat' }
+            ]
+          });
+        } else if (nlpG === 'male') {
+          conditions.push({
+            $or: [
+              { hostelCategory: { $in: ['Boys Hostel', 'Girls & Boys Hostel'] } },
+              { propertyType: 'Flat' }
+            ]
+          });
+        }
+      } else if (userGenderLower === 'female') {
+        conditions.push({
+          $or: [
+            { hostelCategory: { $in: ['Girls Hostel', 'Girls & Boys Hostel'] } },
+            { propertyType: 'Flat' }
+          ]
+        });
+      } else if (userGenderLower === 'male') {
+        conditions.push({
+          $or: [
+            { hostelCategory: { $in: ['Boys Hostel', 'Girls & Boys Hostel'] } },
+            { propertyType: 'Flat' }
+          ]
+        });
+      } else if (parsedFilters.hostelCategory) {
         conditions.push({ hostelCategory: parsedFilters.hostelCategory });
-      } else if (parsedFilters.gender === 'Female') {
-        conditions.push({
-          hostelCategory: { $in: ['Girls Hostel', 'Girls & Boys Hostel'] }
-        });
-      } else if (parsedFilters.gender === 'Male') {
-        conditions.push({
-          hostelCategory: { $in: ['Boys Hostel', 'Girls & Boys Hostel'] }
-        });
       }
 
       if (parsedFilters.foodAvailable !== undefined) {
@@ -212,21 +252,53 @@ exports.getProperties = async (req, res) => {
 
       if (req.query.hostelCategory && req.query.hostelCategory !== 'All') {
         const normCat = normalizeHostelCategory(req.query.hostelCategory);
-        if (normCat === 'Girls Hostel') {
-          // Strictly Girls Stays Only
-          conditions.push({ hostelCategory: 'Girls Hostel' });
-        } else if (normCat === 'Boys Hostel') {
-          // Strictly Boys Stays Only
-          conditions.push({ hostelCategory: 'Boys Hostel' });
+        if (userGenderLower === 'male') {
+          if (normCat === 'Boys Hostel') {
+            conditions.push({ hostelCategory: 'Boys Hostel' });
+          } else if (normCat === 'Girls & Boys Hostel') {
+            conditions.push({ hostelCategory: 'Girls & Boys Hostel' });
+          } else {
+            // Male user cannot select Girls Hostel - default to Boys, Co-ed, or Flat
+            conditions.push({
+              $or: [
+                { hostelCategory: { $in: ['Boys Hostel', 'Girls & Boys Hostel'] } },
+                { propertyType: 'Flat' }
+              ]
+            });
+          }
+        } else if (userGenderLower === 'female') {
+          if (normCat === 'Girls Hostel') {
+            conditions.push({ hostelCategory: 'Girls Hostel' });
+          } else if (normCat === 'Girls & Boys Hostel') {
+            conditions.push({ hostelCategory: 'Girls & Boys Hostel' });
+          } else {
+            // Female user cannot select Boys Hostel - default to Girls, Co-ed, or Flat
+            conditions.push({
+              $or: [
+                { hostelCategory: { $in: ['Girls Hostel', 'Girls & Boys Hostel'] } },
+                { propertyType: 'Flat' }
+              ]
+            });
+          }
         } else {
           conditions.push({ hostelCategory: normCat });
         }
-      } else if (req.query.gender) {
-        if (req.query.gender.toLowerCase() === 'female') {
-          conditions.push({ hostelCategory: 'Girls Hostel' });
-        } else if (req.query.gender.toLowerCase() === 'male') {
-          conditions.push({ hostelCategory: 'Boys Hostel' });
-        }
+      } else if (userGenderLower === 'female') {
+        // Female user with no category filter -> strictly Girls Hostel, Co-ed, or Flat
+        conditions.push({
+          $or: [
+            { hostelCategory: { $in: ['Girls Hostel', 'Girls & Boys Hostel'] } },
+            { propertyType: 'Flat' }
+          ]
+        });
+      } else if (userGenderLower === 'male') {
+        // Male user with no category filter -> strictly Boys Hostel, Co-ed, or Flat
+        conditions.push({
+          $or: [
+            { hostelCategory: { $in: ['Boys Hostel', 'Girls & Boys Hostel'] } },
+            { propertyType: 'Flat' }
+          ]
+        });
       }
 
       if (req.query.foodAvailable && req.query.foodAvailable === 'true') {
@@ -264,12 +336,39 @@ exports.getProperties = async (req, res) => {
         fallbackConditions.push({ monthlyRent: { $lte: parsedFilters.budget * 1.35 } });
       }
 
-      if (parsedFilters.hostelCategory) {
+      if (userGenderLower === 'female') {
+        fallbackConditions.push({
+          $or: [
+            { hostelCategory: { $in: ['Girls Hostel', 'Girls & Boys Hostel'] } },
+            { propertyType: 'Flat' }
+          ]
+        });
+      } else if (userGenderLower === 'male') {
+        fallbackConditions.push({
+          $or: [
+            { hostelCategory: { $in: ['Boys Hostel', 'Girls & Boys Hostel'] } },
+            { propertyType: 'Flat' }
+          ]
+        });
+      } else if (parsedFilters.hostelCategory) {
         fallbackConditions.push({ hostelCategory: parsedFilters.hostelCategory });
       }
 
       const fallbackQuery = fallbackConditions.length > 0 ? { $and: fallbackConditions } : {};
       properties = await Property.find(fallbackQuery).populate('owner', 'name phone email profileImage');
+    }
+
+    // Safety guard: strictly filter out any mismatched gender stays
+    if (userGenderLower === 'male') {
+      properties = properties.filter(p => {
+        const cat = (p.hostelCategory || '').toLowerCase();
+        return !(cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed'));
+      });
+    } else if (userGenderLower === 'female') {
+      properties = properties.filter(p => {
+        const cat = (p.hostelCategory || '').toLowerCase();
+        return !(cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed'));
+      });
     }
 
     // 4. Format properties with room occupancy, rent per person, amenities, food availability, and available beds
@@ -397,15 +496,18 @@ exports.getProperties = async (req, res) => {
       const pLng = raw.location?.coordinates?.[0] || raw.longitude;
 
       let distance = null;
+      let isFromCityCenter = false;
       const uLat = req.query.userLat ? parseFloat(req.query.userLat) : null;
       const uLng = req.query.userLng ? parseFloat(req.query.userLng) : null;
 
       if (uLat !== null && uLng !== null && !isNaN(uLat) && !isNaN(uLng) && pLat && pLng) {
         distance = calculateDistance(uLat, uLng, pLat, pLng);
+        isFromCityCenter = false;
       } else if (pLat && pLng) {
-        // Distance from representative city center
+        // Distance from representative city center (when user is guest/unregistered)
         const cityCenter = CITY_COORDS[raw.city] || [22.7196, 75.8577];
         distance = calculateDistance(cityCenter[0], cityCenter[1], pLat, pLng);
+        isFromCityCenter = true;
       }
 
       // Location Privacy policy check for public feed
@@ -429,7 +531,8 @@ exports.getProperties = async (req, res) => {
         monthlyRent: rentPerPerson,
         roomTiers,
         roommateInfo,
-        distance
+        distance,
+        isFromCityCenter
       };
     });
 

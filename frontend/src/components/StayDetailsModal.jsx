@@ -22,6 +22,13 @@ const StayDetailsModal = ({ property, onClose, onBook }) => {
   const [bookingSent, setBookingSent] = useState(false);
   const [showBedSelector, setShowBedSelector] = useState(false);
 
+  // Gender Suitability Policy Check
+  const userGender = (user?.gender || '').toLowerCase();
+  const cat = (property?.hostelCategory || '').toLowerCase();
+  const isGirlsOnly = cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+  const isBoysOnly = cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+  const isGenderMismatched = (userGender === 'male' && isGirlsOnly) || (userGender === 'female' && isBoysOnly);
+
   if (!property) return null;
 
   const photos = Array.isArray(property.photos) && property.photos.length > 0 
@@ -392,20 +399,36 @@ const StayDetailsModal = ({ property, onClose, onBook }) => {
                   </div>
                 </div>
 
+                {/* Gender Restriction Alert */}
+                {isGenderMismatched && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold space-y-1">
+                    <p className="font-bold text-rose-900">⚠️ Gender Policy Restriction</p>
+                    <p className="text-[11px] text-rose-700">
+                      This property is a {isGirlsOnly ? 'Girls' : 'Boys'} Hostel exclusively for {isGirlsOnly ? 'female' : 'male'} residents. {userGender === 'male' ? 'Male' : 'Female'} residents cannot book this property.
+                    </p>
+                  </div>
+                )}
+
                 {/* Room & Bed Selector Direct Action */}
                 <button
                   type="button"
+                  disabled={isGenderMismatched}
                   onClick={() => {
+                    if (isGenderMismatched) return;
                     if (!user) {
                       navigate('/login');
                       return;
                     }
                     setShowBedSelector(true);
                   }}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl text-xs sm:text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                  className={`w-full font-bold py-3 rounded-xl text-xs sm:text-sm transition-all shadow-md flex items-center justify-center gap-2 ${
+                    isGenderMismatched
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      : 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer'
+                  }`}
                 >
                   <BedDouble className="w-4 h-4" />
-                  <span>Choose Specific Room & Bed</span>
+                  <span>{isGenderMismatched ? `Restricted to ${isGirlsOnly ? 'Female' : 'Male'} Residents` : 'Choose Specific Room & Bed'}</span>
                 </button>
 
                 <div className="relative flex py-1 items-center">
@@ -416,7 +439,12 @@ const StayDetailsModal = ({ property, onClose, onBook }) => {
 
                 <button
                   type="submit"
-                  className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                  disabled={isGenderMismatched}
+                  className={`w-full font-bold py-2.5 rounded-xl text-xs sm:text-sm transition-all shadow-xs flex items-center justify-center gap-2 ${
+                    isGenderMismatched
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      : 'bg-[#059669] hover:bg-[#047857] text-white cursor-pointer'
+                  }`}
                 >
                   <span>Quick Inquire</span>
                   <ArrowRight className="w-4 h-4" />

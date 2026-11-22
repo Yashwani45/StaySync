@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Star, MapPin, Heart, ArrowRight, CheckCircle2, Users, BedDouble, Utensils, Shield, ShieldCheck, Check, ChevronLeft, ChevronRight, Camera, DoorClosed, Building2, Home, Clock, FileText } from 'lucide-react';
+import { Star, MapPin, Heart, ArrowRight, CheckCircle2, Users, BedDouble, Utensils, Shield, ShieldCheck, Check, ChevronLeft, ChevronRight, Camera, DoorClosed, Building2, Home, Clock, FileText, AlertTriangle } from 'lucide-react';
 import VerificationBadge from './VerificationBadge';
 import { normalizeImageUrl } from '../utils/imageHelper';
+import { useAuth } from '../context/AuthContext';
 
 const PropertyCard = ({
   property,
@@ -29,6 +30,14 @@ const PropertyCard = ({
   } = property;
 
   const displayDistance = distance || property.distanceKm;
+
+  // Gender Suitability Policy Check
+  const { user } = useAuth();
+  const userGender = (user?.gender || '').toLowerCase();
+  const cat = (hostelCategory || '').toLowerCase();
+  const isGirlsOnly = cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+  const isBoysOnly = cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+  const isGenderMismatched = (userGender === 'male' && isGirlsOnly) || (userGender === 'female' && isBoysOnly);
 
   // Selected room tier state (defaults to property's active roomType or first available tier)
   const initialTierType = property.roomType || '2-Seater Room';
@@ -264,8 +273,11 @@ const PropertyCard = ({
             {displayDistance !== undefined && displayDistance !== null && (
               <>
                 <span className="text-gray-300 font-normal shrink-0">•</span>
-                <span className="font-bold shrink-0 text-blue-700 bg-blue-50 border border-blue-200/60 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">
-                  📍 {displayDistance} km away
+                <span 
+                  className="font-bold shrink-0 text-blue-700 bg-blue-50 border border-blue-200/60 px-2 py-0.5 rounded text-[11px] whitespace-nowrap"
+                  title={property.isFromCityCenter ? `Approx. ${displayDistance} km from City Center landmark` : `${displayDistance} km from your preferred destination`}
+                >
+                  📍 {displayDistance} km {property.isFromCityCenter ? 'from City Center' : 'away'}
                 </span>
               </>
             )}
@@ -546,8 +558,10 @@ const PropertyCard = ({
             {onSelectStay ? (
               <button
                 type="button"
+                disabled={isGenderMismatched}
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (isGenderMismatched) return;
                   onSelectStay({
                     ...property,
                     roomType: currentRoomType,
@@ -557,30 +571,47 @@ const PropertyCard = ({
                     availableBeds: currentAvailableBeds
                   });
                 }}
-                className={`w-full py-2.5 px-2 rounded-xl text-xs font-black transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
-                  isSelected
-                    ? 'bg-[#064e3b] text-white shadow-sm ring-2 ring-emerald-400/40'
-                    : 'bg-[#059669] hover:bg-[#047857] text-white'
+                className={`w-full py-2.5 px-2 rounded-xl text-xs font-black transition-all shadow-xs flex items-center justify-center gap-1.5 ${
+                  isGenderMismatched
+                    ? 'bg-rose-100 text-rose-700 border border-rose-200 cursor-not-allowed opacity-90'
+                    : isSelected
+                    ? 'bg-[#064e3b] text-white shadow-sm ring-2 ring-emerald-400/40 cursor-pointer active:scale-95'
+                    : 'bg-[#059669] hover:bg-[#047857] text-white cursor-pointer active:scale-95'
                 }`}
+                title={isGenderMismatched ? `This is a ${isGirlsOnly ? 'Girls' : 'Boys'} Hostel. ${userGender === 'male' ? 'Male' : 'Female'} residents cannot book.` : ''}
               >
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{isSelected ? 'Booked' : 'Book Stay'}</span>
+                {isGenderMismatched ? (
+                  <span className="truncate">{isGirlsOnly ? 'Girls Only' : 'Boys Only'}</span>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{isSelected ? 'Booked' : 'Book Stay'}</span>
+                  </>
+                )}
               </button>
             ) : onInquire ? (
               <button
                 type="button"
-                onClick={() => onInquire({
-                  ...property,
-                  roomType: currentRoomType,
-                  monthlyRent: currentRent,
-                  rentPerPerson: currentRent,
-                  occupancy: currentOccupancy,
-                  availableBeds: currentAvailableBeds
-                })}
-                className="w-full py-2.5 px-2 rounded-xl text-xs font-bold transition-all bg-[#059669] hover:bg-[#047857] text-white flex items-center justify-center gap-1 cursor-pointer"
+                disabled={isGenderMismatched}
+                onClick={() => {
+                  if (isGenderMismatched) return;
+                  onInquire({
+                    ...property,
+                    roomType: currentRoomType,
+                    monthlyRent: currentRent,
+                    rentPerPerson: currentRent,
+                    occupancy: currentOccupancy,
+                    availableBeds: currentAvailableBeds
+                  });
+                }}
+                className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                  isGenderMismatched
+                    ? 'bg-rose-100 text-rose-700 border border-rose-200 cursor-not-allowed opacity-90'
+                    : 'bg-[#059669] hover:bg-[#047857] text-white cursor-pointer'
+                }`}
               >
-                <span>Book Stay</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <span>{isGenderMismatched ? (isGirlsOnly ? 'Girls Only' : 'Boys Only') : 'Book Stay'}</span>
+                {!isGenderMismatched && <ArrowRight className="w-3.5 h-3.5" />}
               </button>
             ) : null}
           </div>

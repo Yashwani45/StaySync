@@ -913,6 +913,17 @@ exports.updateProfile = async (req, res) => {
       };
 
       if (req.body.selectedStay !== undefined) {
+        if (req.body.selectedStay) {
+          const Property = require('../models/Property');
+          const stayObj = await Property.findById(req.body.selectedStay);
+          if (stayObj) {
+            const { validateGenderMatch } = require('../utils/genderValidator');
+            const gCheck = await validateGenderMatch(user, stayObj);
+            if (!gCheck.valid) {
+              return res.status(400).json({ success: false, message: gCheck.message });
+            }
+          }
+        }
         profileData.selectedStay = req.body.selectedStay || null;
       }
       if (req.body.selectedProviders !== undefined) {

@@ -88,10 +88,25 @@ const Profile = () => {
         (user?.id ? localStorage.getItem(`staysync_selected_stay_${user.id}`) : null) || 
         'null'
       );
-      if (roommateProfile?.selectedStay) {
+      const uG = (user?.gender || roommateProfile?.gender || '').toLowerCase();
+      const isValidStayForUser = (stay) => {
+        if (!stay) return false;
+        const cat = (stay.hostelCategory || stay.title || '').toLowerCase();
+        const isGirls = (cat.includes('girls') || cat.includes('female')) && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed');
+        const isBoys = (cat.includes('boys') || cat.includes('male')) && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed');
+        if ((uG === 'male' && isGirls) || (uG === 'female' && isBoys)) return false;
+        return true;
+      };
+
+      if (roommateProfile?.selectedStay && isValidStayForUser(roommateProfile.selectedStay)) {
         setSelectedStay(roommateProfile.selectedStay);
-      } else if (localStay) {
+      } else if (localStay && isValidStayForUser(localStay)) {
         setSelectedStay(localStay);
+      } else {
+        setSelectedStay(null);
+        if (currentUserId) {
+          localStorage.removeItem(`staysync_selected_stay_${currentUserId}`);
+        }
       }
 
       const localProviders = JSON.parse(

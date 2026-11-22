@@ -274,7 +274,7 @@ const PropertiesMap = ({
 
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; padding: 6px 8px; background: #f9fafb; border-radius: 8px;">
                 <span style="font-size: 14px; font-weight: 800; color: #059669;">₹${rentVal.toLocaleString('en-IN')}<span style="font-size: 9px; font-weight: normal; color: #9ca3af;"> /mo</span></span>
-                ${property.distance ? `<span style="font-size: 10px; color: #2563eb; font-weight: 700;">📍 ${property.distance} km away</span>` : ''}
+                ${property.distance ? `<span style="font-size: 10px; color: #2563eb; font-weight: 700;">📍 ${property.distance} km ${property.isFromCityCenter ? 'from City Center' : 'away'}</span>` : ''}
               </div>
 
               <div style="display: flex; flex-direction: column; gap: 6px;">

@@ -217,27 +217,69 @@ exports.getCombinedBundles = async (req, res) => {
     const userObj = userProfile.user || {};
     const city = userObj.preferredCity || userObj.currentCity || userObj.city || 'Indore';
     const stayPref = userObj.propertyType || userObj.preferredRoomType || userProfile.roomType || '';
-    const gender = userObj.gender || userProfile.gender || '';
+    const gender = (userObj.gender || userProfile.gender || '').toLowerCase();
 
-    // Fetch rooms matching user's account creation stay preferences and gender
+    // Helper to build strict gender condition
+    const buildGenderCondition = () => {
+      if (gender === 'female') {
+        return {
+          $or: [
+            { hostelCategory: { $in: ['Girls Hostel', 'Girls & Boys Hostel'] } },
+            { propertyType: 'Flat' }
+          ]
+        };
+      }
+      if (gender === 'male') {
+        return {
+          $or: [
+            { hostelCategory: { $in: ['Boys Hostel', 'Girls & Boys Hostel'] } },
+            { propertyType: 'Flat' }
+          ]
+        };
+      }
+      return null;
+    };
+
+    const genderCond = buildGenderCondition();
+
+    // 1. Try with city + stayPref + gender
     const propQuery = { city: new RegExp(city, 'i') };
     if (stayPref) propQuery.propertyType = stayPref;
-    if (gender.toLowerCase() === 'female') {
-      propQuery.hostelCategory = { $in: ['Girls Hostel', 'Girls & Boys Hostel'] };
-    } else if (gender.toLowerCase() === 'male') {
-      propQuery.hostelCategory = { $in: ['Boys Hostel', 'Girls & Boys Hostel'] };
+    if (genderCond) {
+      propQuery.$and = [genderCond];
     }
 
     let properties = await Property.find(propQuery);
-    if (properties.length === 0 && stayPref) {
-      // Relax gender, try with propertyType in city
-      properties = await Property.find({ city: new RegExp(city, 'i'), propertyType: stayPref });
-    }
+
+    // 2. Fallback: Relax stayPref, but STRICTLY RETAIN GENDER
     if (properties.length === 0) {
-      properties = await Property.find({ city: new RegExp(city, 'i') });
+      const fallbackQuery = { city: new RegExp(city, 'i') };
+      if (genderCond) {
+        fallbackQuery.$and = [genderCond];
+      }
+      properties = await Property.find(fallbackQuery);
     }
+
+    // 3. Fallback: Relax city, but STILL STRICTLY RETAIN GENDER
     if (properties.length === 0) {
-      properties = await Property.find({});
+      const fallbackAnyCity = {};
+      if (genderCond) {
+        fallbackAnyCity.$and = [genderCond];
+      }
+      properties = await Property.find(fallbackAnyCity);
+    }
+
+    // Safety guard: filter out any mismatched gender stays
+    if (gender === 'male') {
+      properties = properties.filter(p => {
+        const cat = (p.hostelCategory || '').toLowerCase();
+        return !(cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed'));
+      });
+    } else if (gender === 'female') {
+      properties = properties.filter(p => {
+        const cat = (p.hostelCategory || '').toLowerCase();
+        return !(cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed'));
+      });
     }
 
     let providers = await ServiceProvider.find({ city: new RegExp(city, 'i') });
@@ -246,7 +288,20 @@ exports.getCombinedBundles = async (req, res) => {
     }
 
     // Call matching service
-    const bundles = getCombinedRecommendations(userProfile, properties, providers);
+    let bundles = getCombinedRecommendations(userProfile, properties, providers);
+
+    // Filter bundles by gender
+    if (gender === 'male') {
+      bundles = bundles.filter(b => {
+        const cat = (b.property?.hostelCategory || '').toLowerCase();
+        return !(cat.includes('girls') && !cat.includes('boys') && !cat.includes('&') && !cat.includes('co-ed'));
+      });
+    } else if (gender === 'female') {
+      bundles = bundles.filter(b => {
+        const cat = (b.property?.hostelCategory || '').toLowerCase();
+        return !(cat.includes('boys') && !cat.includes('girls') && !cat.includes('&') && !cat.includes('co-ed'));
+      });
+    }
 
     res.json({
       success: true,
