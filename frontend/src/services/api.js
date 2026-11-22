@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+
+const API_URL = import.meta.env.VITE_API_URL;
+
+if (!API_URL) {
+  throw new Error('VITE_API_URL is missing. Check Vercel Environment Variables.');
+}
+
 const api = axios.create({
-  baseURL: '', // Using relative path since Vite proxy is configured
+  baseURL: API_URL.replace(/\/+$/, ''),
   headers: {
     'Content-Type': 'application/json'
   }
